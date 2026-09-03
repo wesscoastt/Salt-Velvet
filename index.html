@@ -225,27 +225,55 @@ canvas{display:block;width:100%;height:100%}
 #titleWrap{width:100%;height:100%;display:flex;background:#0b0d10}
 #titleLeft{width:min(430px,38vw);flex:none;padding:min(7vh,64px) 0 44px min(6vw,58px);
   display:flex;flex-direction:column;border-right:1px solid rgba(200,190,170,.10)}
-.tm-name{font-family:var(--display);font-size:min(62px,6.2vw);line-height:.92;
-  color:var(--bone);letter-spacing:.02em}
-.tm-rule{width:96px;height:1px;background:var(--amber);opacity:.7;margin:20px 0 10px}
-.tm-year{font-size:11px;letter-spacing:.5em;color:var(--amber)}
-#menuList{margin-top:min(8vh,66px)}
-.mi{font-size:14px;letter-spacing:.28em;color:var(--bone);opacity:.45;padding:11px 0;
-  cursor:pointer;transition:opacity .15s,letter-spacing .15s}
+/* SALT & VELVET was nowhere on its own main menu - the title read PORT
+   HALCYON, the city's name, not the game's. Game name first, setting
+   second, the way a crime film's own poster is laid out. */
+.tm-eyebrow{font-size:9px;letter-spacing:.5em;color:var(--amber);opacity:.75;
+  margin-bottom:10px}
+.tm-name{font-family:var(--display);font-size:min(64px,6.4vw);line-height:.9;
+  color:var(--bone);letter-spacing:.01em;
+  text-shadow:0 2px 0 rgba(0,0,0,.4),0 18px 40px rgba(0,0,0,.5)}
+.tm-rule{width:96px;height:2px;
+  background:linear-gradient(90deg,var(--amber),transparent);
+  margin:22px 0 12px}
+.tm-setting{font-size:10px;letter-spacing:.36em;color:var(--bone);opacity:.6}
+#menuList{margin-top:min(7vh,56px)}
+.mi{font-size:14px;letter-spacing:.28em;color:var(--bone);opacity:.4;
+  padding:12px 0 12px 16px;cursor:pointer;position:relative;
+  border-left:2px solid transparent;
+  transition:opacity .15s,letter-spacing .15s,border-color .15s}
 .mi span{display:inline-block;width:22px;color:var(--amber);opacity:0}
-.mi:hover{opacity:.8}
-.mi.sel{opacity:1;letter-spacing:.34em}
+.mi:hover{opacity:.75}
+.mi.sel{opacity:1;letter-spacing:.34em;border-left-color:var(--blood)}
 .mi.sel span{opacity:1}
 #menuHint{margin-top:auto;font-size:9px;letter-spacing:.3em;color:var(--bone);opacity:.34}
 #menuAudioCue{color:var(--amber);opacity:.85;animation:beat 2.2s infinite}
+/* A fixed banner, not part of the sidebar's own flex stack - the old cue
+   sat after #menuHint inside a flex column with margin-top:auto pushing
+   both to the bottom, which on a shorter phone screen pushed it past the
+   visible fold entirely. This is now always in view regardless of the
+   sidebar's own content height, and the click/tap that starts the game
+   IS the only gesture that unlocks audio, so it needs to be unmissable. */
+#tapToStart{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 22px);
+  transform:translateX(-50%);font-size:11px;letter-spacing:.32em;
+  color:var(--amber);opacity:0;animation:beat 1.8s infinite;
+  text-shadow:0 2px 10px rgba(0,0,0,.9);white-space:nowrap;z-index:5;
+  pointer-events:none}
+#tapToStart.on{opacity:.92}
 #menuHint b{color:var(--amber);opacity:.8;font-weight:400}
+/* moodier, more cinematic - a grain/vignette pass and a deeper noir
+   gradient instead of the flatter wash it had */
 #titleRight{flex:1;position:relative;overflow:hidden;
-  background:linear-gradient(160deg,#141a20 0%,#0b0f13 60%,#080a0c 100%)}
+  background:linear-gradient(165deg,#171d24 0%,#0c1013 55%,#07090b 100%)}
 #titleArt{position:absolute;inset:0;
   background:
-    radial-gradient(circle at 72% 34%, rgba(232,180,92,.16), transparent 46%),
-    radial-gradient(circle at 30% 78%, rgba(140,31,26,.18), transparent 52%),
-    linear-gradient(0deg, rgba(0,0,0,.55), transparent 55%)}
+    radial-gradient(circle at 74% 30%, rgba(232,180,92,.14), transparent 44%),
+    radial-gradient(circle at 26% 82%, rgba(140,31,26,.20), transparent 50%),
+    linear-gradient(0deg, rgba(0,0,0,.62), transparent 58%),
+    repeating-linear-gradient(0deg, rgba(255,255,255,.02) 0px,
+      transparent 1px, transparent 3px)}
+#titleRight:after{content:"";position:absolute;inset:0;pointer-events:none;
+  box-shadow:inset 0 0 160px rgba(0,0,0,.55)}
 #titleTag{position:absolute;right:min(5vw,54px);bottom:min(7vh,60px);
   font-size:11px;letter-spacing:.42em;line-height:2.1;color:var(--bone);
   opacity:.62;text-align:right}
@@ -602,9 +630,10 @@ body.touch /* --- HUD: GTA San Andreas mobile layout ---------------------------
   <div id="titleWrap">
     <div id="titleLeft">
       <div id="titleMark">
-        <div class="tm-name">PORT<br>HALCYON</div>
+        <div class="tm-eyebrow">A GULF COAST CRIME STORY</div>
+        <div class="tm-name">SALT<br>&amp; VELVET</div>
         <div class="tm-rule"></div>
-        <div class="tm-year">1959</div>
+        <div class="tm-setting">PORT HALCYON, TEXAS &middot; 1959</div>
       </div>
       <div id="menuList">
         <div class="mi sel" data-act="continue"><span>&#9656;</span>CONTINUE</div>
@@ -612,7 +641,7 @@ body.touch /* --- HUD: GTA San Andreas mobile layout ---------------------------
         <div class="mi" data-act="controls"><span>&#9656;</span>CONTROLS</div>
         <div class="mi" data-act="credits"><span>&#9656;</span>CREDITS</div>
       </div>
-      <div id="menuHint"><b>ENTER</b> SELECT &nbsp;&nbsp; <b>&#8593;&#8595;</b> MOVE &nbsp;&nbsp; <span id="menuAudioCue">&#9834; TAP TO BEGIN</span></div>
+      <div id="menuHint"><b>ENTER</b> SELECT &nbsp;&nbsp; <b>&#8593;&#8595;</b> MOVE</div>
     </div>
     <div id="titleRight">
       <div id="titleArt"></div>
@@ -622,6 +651,7 @@ body.touch /* --- HUD: GTA San Andreas mobile layout ---------------------------
       </div>
     </div>
   </div>
+  <div id="tapToStart" class="on">&#9834; TAP OR PRESS ENTER TO BEGIN &mdash; STARTS THE MUSIC</div>
   <div class="btn" id="startBtn" style="display:none">Begin</div>
 </div>
 
@@ -6104,6 +6134,7 @@ var Vehicles = {
     active: null,               /* the car the player is in                   */
     hotwireT: 0,
     nearCar: null,
+    _wasActive: false,
     _spawnDefs: [],
 
 
@@ -6351,6 +6382,14 @@ var Vehicles = {
 
     update: function (dt) {
         var i, v;
+
+        /* The touch GRAB button doubled as ENTER and EXIT with no way to
+           tell which - it showed dim generic "GRAB" the entire time you
+           were driving, even though pressing it exits the car. Say so. */
+        if (!!this.active !== this._wasActive) {
+            this._wasActive = !!this.active;
+            SV.bus.emit('vehicle:prompt', this.active ? 'EXIT' : '');
+        }
 
         /* --- proximity prompt + enter ------------------------------------ */
         if (!this.active && !Player.isDead() && !Melee.held && !Melee.inBrawl()) {
@@ -10278,7 +10317,7 @@ var UI = {
                 kv('RADIO NEXT', ']') + kv('RADIO ON/OFF', '[') +
                 kv('PAUSE', 'ESC');
         } else if (what === 'credits') {
-            h = '<h3>Port Halcyon</h3>' +
+            h = '<h3>Salt &amp; Velvet</h3>' +
                 '<p>A Gulf Coast crime story, built in a single HTML file ' +
                 'on Three.js. Every district, every car and every face is ' +
                 'boxes and light.</p>' +
@@ -12561,6 +12600,16 @@ var Radio = {
     },
 
     _onEnterCar: function () {
+        /* Theme.stop(3.0) starts its own independent 3-second fade the
+           moment control returns from the intro - but the tutorial's very
+           first objective is just "walk", and nothing stops a player from
+           reaching a car inside that window. The car radio started playing
+           right on top of the still-fading theme with no coordination
+           between the two at all. Cut it hard, immediately, the instant
+           any radio is asked to play - never wait on its own timer. */
+        if (typeof Theme !== 'undefined' && (Theme.playing || Theme._el)) {
+            Theme.stop(0.3);
+        }
         if (!this.available) {
             SV.bus.emit('radio:station',
                 { call: 'NO SIGNAL', name: 'RADIO FOLDERS NOT FOUND' });
@@ -12663,6 +12712,9 @@ var Radio = {
     /* the safehouse radio: same stations, no car required */
     startHouse: function () {
         if (!this.available) { return; }
+        if (typeof Theme !== 'undefined' && (Theme.playing || Theme._el)) {
+            Theme.stop(0.3);
+        }
         this.houseMode = true;
         this.enabled = true;
         if (this.trackIndex < 0) { this.next(false); }
@@ -12710,9 +12762,13 @@ var Radio = {
             }
         }
 
-        if (Player.driving && this.enabled && this.available) {
-            if (Input.pressed('radioNext')) { this.next(false); }
+        /* radioStation has to work even when the set is off - it is the
+           SAME button that turns it back on. Gating it behind this.enabled
+           meant once you switched the radio off, the game stopped listening
+           for that button at all, and there was no way to turn it back on. */
+        if (Player.driving && this.available) {
             if (Input.pressed('radioStation')) { this.cycleStation(); }
+            if (this.enabled && Input.pressed('radioNext')) { this.next(false); }
         }
     },
 
@@ -12755,6 +12811,13 @@ var Theme = {
         if (document.body && document.body.appendChild) {
             document.body.appendChild(a);
         }
+        var self = this;
+        if (document.addEventListener) {
+            var retry = function () { self.retryIfBlocked(); };
+            document.addEventListener('click', retry);
+            document.addEventListener('touchstart', retry);
+            document.addEventListener('keydown', retry);
+        }
     },
 
     /* Called from the same gesture that starts the game. Playing on a user
@@ -12764,15 +12827,33 @@ var Theme = {
         if (this._unlocked || !this._el) { return; }
         this._unlocked = true;
         var el = this._el;
+        var self = this;
         var p = el.play ? el.play() : null;
-        if (p && p['catch']) { p['catch'](function () { /* stays silent */ }); }
+        if (p && p['catch']) {
+            p['catch'](function () {
+                /* This used to just stay silent forever - no retry, no
+                   signal, nothing. If autoplay was blocked the theme never
+                   played at all and there was no way to recover it. */
+                self._blocked = true;
+                SV.bus.emit('theme:blocked', {});
+            });
+        }
         this.playing = true;
         this._fadeTo(0.42, 1.4);
+    },
+
+    /* the same recovery Radio has - any real gesture after a block retries */
+    retryIfBlocked: function () {
+        if (!this._blocked || !this._el) { return; }
+        var p = this._el.play ? this._el.play() : null;
+        if (p && p['catch']) { p['catch'](function () {}); }
+        this._blocked = false;
     },
 
     /* the theme gives way to the opening film's narration and to gameplay,
        rather than fighting either */
     duck: function (v, secs) { this._fadeTo(v, secs || 0.8); },
+    _blocked: false,
 
     stop: function (secs) {
         var self = this;
@@ -13974,7 +14055,13 @@ var Game = {
             Player.rig.root.rotation.set(0, Player.yaw, 0);
             /* the opening plays over the live world, then hands control back */
             Player.controlLock = true;
-            Theme.duck(0.10, 2.5);       /* the film speaks; the theme steps back */
+            /* 0.10 was so quiet against the film's narration and ambience
+               that it read as "the theme never played" - it was technically
+               fading toward SOMETHING, just below the noise floor of
+               everything else on screen. Loud enough to actually notice,
+               still clearly secondary to the narration. */
+            Theme.duck(0.24, 2.5);
+            Theme.retryIfBlocked();
             Intro.start(function () {
                 Player.controlLock = false;
                 Theme.stop(3.0);         /* gameplay and the radio take it from here */
