@@ -19279,7 +19279,9 @@ var City = {
         /* mid-island: Fort Crockett's batteries, barracks and parade ground */
         [-745, 290, 160, 110],
         /* the country club inside Bayou Shore Drive, and 61st Street's motor court and burger stand */
-        [-1225, -215, 400, 300], [-832, 85, 64, 170]
+        [-1225, -215, 400, 300], [-832, 85, 64, 170],
+        /* the West End's landmarks */
+        [-2500, 338, 150, 80], [-3760, 20, 280, 280], [-4760, 290, 70, 60], [-5150, 292, 44, 34], [-6450, 125, 80, 70], [-6960, 182, 44, 30]
     ],
 
     /* ----------------------------------------------------------------------
@@ -27626,13 +27628,123 @@ var Landmarks = {
     /* ================================================================ BUILD */
     build: function () {
         var names = ['_pleasurePier', '_flagship', '_seawallStrip', '_beachSide', '_gulfQueen', '_downtown', '_trapani',
-                     '_waterfront', '_government', '_mainland', '_hospital', '_galveston', '_renames', '_hotelSigns', '_cadiz', '_fishCamps', '_midIsland'], i;
+                     '_waterfront', '_government', '_mainland', '_hospital', '_galveston', '_renames', '_hotelSigns', '_cadiz', '_fishCamps', '_midIsland', '_westEnd'], i;
         for (i = 0; i < names.length; i++) {
             try { this[names[i]](); } catch (e) { if (window.console) { console.warn('landmarks ' + names[i], e); } }
         }
         this._makeBulbs();
         this._buoys();
     },
+    /* ---- the West End's landmarks ------------------------------------------- */
+    _westEnd: function () {
+        var self = this, k, i, x, z;
+        var tilt = function (w, h, d, x, y, z, hex, rx, ry, rz, surf) {
+            City._staticMesh(new THREE.BoxGeometry(w, h, d), self._m(hex), x, y, z, 1, 1, 1, rx || 0, ry || 0, rz || 0, surf || 'concrete', true);
+        };
+        /* -- the golf course gets its trees -- */
+        var T = [[-1400, -330], [-1360, -90], [-1060, -330], [-1040, -100], [-1180, -340], [-1300, -330], [-1400, -200], [-1050, -220],
+                 [-1260, -160], [-1150, -120], [-1330, -240], [-1110, -290], [-1250, -300], [-1400, -260], [-1060, -160]];
+        for (k = 0; k < T.length; k++) { City._tree(T[k][0], T[k][1], 4 + (k % 3), 7 + (k % 4), true); }
+
+        /* -- Skyline Trailer Court, south of Scholes Field -- */
+        var PT = [0xe8d8b8, 0xb8d8c8, 0xe8c0b8, 0xc8d4e8, 0xf0e2a8, 0xd8d8d0];
+        this.deco(30, 0.03, 70, -2500, 0.02, 338, 0x8a7a62);
+        for (i = 0; i < 12; i++) {
+            x = -2500 + (i < 6 ? -11 : 11); z = 310 + (i % 6) * 11.5;
+            this.box(9.5, 2.7, 2.6, x, 0.5, z, PT[i % PT.length], { surface: 'metal' });
+            this.deco(9.55, 0.35, 2.65, x, 1.6, z, 0xf4f0e6);
+            this.deco(0.9, 1.9, 0.06, x + (i < 6 ? 3.5 : -3.5), 0.6, z + (i < 6 ? 1.33 : -1.33), 0x5a4a3a);
+            this.deco(1.6, 0.7, 0.06, x - 1, 1.6, z + (i < 6 ? 1.33 : -1.33), 0x3d5561);
+            this.deco(8.6, 0.5, 2.2, x, 0, z, 0x6a6a66);
+            if (i % 3 === 0) { this.deco(3, 0.1, 2.4, x, 2.6, z + (i < 6 ? 2.4 : -2.4), [0xd8543a, 0x2a8a8a, 0xe0b830][i % 3 === 0 ? (i / 3) % 3 : 0]); }
+        }
+        this.deco(0.3, 6, 0.3, -2470, 0, 380, 0x3a3a38);
+        this.sign(['SKYLINE', 'TRAILER COURT \u00b7 WEEKLY RATES'], { x: -2470, y: 6.2, z: 380, yaw: 0, w: 5, h: 1.4, fg: '#7ad8ff', fg2: '#ffd24a' });
+        this.poi(-2500, 338, 'home', 'SKYLINE TRAILER COURT');
+
+        /* -- a Sweetwater ranch: house, barn, windmill, corral, the stock tank -- */
+        this.box(14, 4.5, 10, -3680, 0, -40, 0xe8e0cc, { surface: 'wood' });
+        City._winJob(14, 4.5, 10, -3680, 0, -40);
+        City._gable(-3680, 4.5, -40, 15.4, 11, 2.6, 0x5a4a3c);
+        this.deco(14, 0.25, 3, -3680, 2.9, -33.5, 0x6a5a4a);
+        this.box(16, 7, 22, -3720, 0, 20, 0x8a2a22, { surface: 'wood' });
+        City._gable(-3720, 7, 20, 17, 23, 4.4, 0x3a3a3c);
+        this.deco(5, 5, 0.1, -3720, 0, 31.05, 0x5a1a16);
+        for (k = 0; k < 4; k++) { this.deco(0.2, 12, 0.2, -3650 + (k % 2) * 3, 0, 10 + Math.floor(k / 2) * 3, 0x6a6a66); }
+        this.cyl(2.6, 0.2, -3648.5, 12.2, 11.5, 0xb8b4a8, 16, 'metal', false);
+        this.cyl(4, 2.2, -3640, 0, 30, 0x8a8e8a, 18, 'metal');
+        for (k = 0; k < 10; k++) {
+            this.deco(0.15, 1.4, 0.15, -3700 + k * 4, 0, 60, 0x6a5a48); this.deco(0.15, 1.4, 0.15, -3700 + k * 4, 0, 90, 0x6a5a48);
+        }
+        this.deco(36, 0.12, 0.12, -3682, 1.2, 60, 0x6a5a48); this.deco(36, 0.12, 0.12, -3682, 1.2, 90, 0x6a5a48);
+        this.deco(36, 0.12, 0.12, -3682, 0.6, 60, 0x6a5a48); this.deco(36, 0.12, 0.12, -3682, 0.6, 90, 0x6a5a48);
+        this.poi(-3700, 0, 'star', 'CROSS T RANCH');
+        /* the oil wells: pumpjacks nodding over the cow pasture */
+        var PJ = [[-3880, -60], [-4020, 40], [-3920, 150], [-3800, 120]];
+        for (k = 0; k < PJ.length; k++) {
+            x = PJ[k][0]; z = PJ[k][1];
+            this.box(6, 0.6, 2.4, x, 0, z, 0x5a5a56, { surface: 'concrete' });
+            tilt(0.25, 5, 0.25, x - 0.8, 0.6 + 2.4, z - 0.7, 0x3a3a3c, 0.15, 0, 0.18, 'metal');
+            tilt(0.25, 5, 0.25, x - 0.8, 0.6 + 2.4, z + 0.7, 0x3a3a3c, -0.15, 0, 0.18, 'metal');
+            tilt(7, 0.45, 0.45, x, 5.4, z, 0x2a2c2e, 0, 0, (k % 2 ? 0.12 : -0.1), 'metal');
+            this.deco(0.6, 2.2, 0.7, x + 3.6, 3.8, z, 0x2a2c2e);
+            this.cyl(1.0, 0.5, x - 2.6, 1.6, z, 0x8a2a22, 14, 'metal', false);
+            this.cyl(0.15, 1.2, x + 3.6, 0.6, z, 0x6a6a66, 8, 'metal', false);
+        }
+
+        /* -- Jamaica Beach: a bait shop on a dug canal -- */
+        this.deco(8, 0.05, 50, -4740, 0.02, 290, 0x2e5a5a);
+        this.deco(0.4, 0.6, 50, -4744.2, 0, 290, 0x8a7a62); this.deco(0.4, 0.6, 50, -4735.8, 0, 290, 0x8a7a62);
+        this.box(10, 3.6, 8, -4770, 0, 300, 0xd8e0d0, { surface: 'wood' });
+        City._gable(-4770, 3.6, 300, 11, 9, 1.8, 0x4a5a6a);
+        this.deck(-4765, -4744, 294, 306, 0x8a6a4a);
+        this.deco(2.4, 1.1, 1.2, -4776, 0, 305, 0xe8e8e0);
+        this.sign(['BAIT \u00b7 ICE \u00b7 BEER', 'LIVE SHRIMP'], { x: -4770, y: 4.4, z: 304.1, yaw: 0, w: 4.4, h: 1.1, fg: '#ffd24a', fg2: '#7ad8ff', day: 0.4 });
+        this.poi(-4770, 300, 'fish', 'JAMAICA BEACH BAIT CAMP');
+
+        /* -- West Beach: the Driftwood, last honky-tonk before the pass -- */
+        this.box(18, 4.4, 12, -5150, 0, 292, 0x7a5a42, { surface: 'wood' });
+        City._gable(-5150, 4.4, 292, 19, 13, 2.2, 0x3a3a3c);
+        this.deco(18, 0.3, 4, -5150, 3.0, 300, 0x5a4232);
+        for (k = 0; k < 4; k++) { this.deco(0.25, 3, 0.25, -5158 + k * 5.3, 0, 301.8, 0x4a3a2a); }
+        this.deco(26, 0.03, 16, -5150, 0.02, 278, 0x8a7a62);
+        this.deco(0.4, 7, 0.4, -5136, 0, 306, 0x3a3a38);
+        this.sign(['THE DRIFTWOOD', 'COLD BEER \u00b7 LIVE MUSIC SAT.'], { x: -5136, y: 7.2, z: 306, yaw: 0, w: 5.6, h: 1.5, fg: '#ff5a3a', fg2: '#ffd24a', bg: '#141012' });
+        this.poi(-5150, 292, 'bar', 'THE DRIFTWOOD');
+
+        /* -- San Luis Pass: the Sea Isle Hotel, what the storm left of it -- */
+        var hx = -6450, hz = 125, W = 40, D = 22;
+        this.box(W, 9, 0.6, hx, 0, hz - D / 2, 0xe0d4bc, { surface: 'plaster' });
+        this.box(W * 0.55, 6, 0.6, hx - W * 0.22, 0, hz + D / 2, 0xe0d4bc, { surface: 'plaster' });
+        this.box(W * 0.2, 3, 0.6, hx + W * 0.4, 0, hz + D / 2, 0xe0d4bc, { surface: 'plaster' });
+        this.box(0.6, 9, D, hx - W / 2, 0, hz, 0xe0d4bc, { surface: 'plaster' });
+        this.box(0.6, 4.5, D * 0.6, hx + W / 2, 0, hz - D * 0.2, 0xe0d4bc, { surface: 'plaster' });
+        this.deco(W - 1, 0.35, D * 0.5, hx, 3.0, hz - D * 0.25, 0xb8ac94);
+        for (k = 0; k < 9; k++) {
+            this.deco(1.2, 1.3, 0.1, hx - W / 2 + 3 + k * 4.2, 4.5, hz - D / 2 - 0.32, 0x1a1c1e);
+            this.deco(1.2, 1.3, 0.1, hx - W / 2 + 3 + k * 4.2, 1.2, hz - D / 2 - 0.32, 0x1a1c1e);
+        }
+        for (k = 0; k < 14; k++) {
+            var dx = Math.sin(k * 7.3) * 18, dz = Math.cos(k * 3.1) * 14;
+            tilt(1 + (k % 4), 0.4 + (k % 3) * 0.3, 1 + ((k + 2) % 4), hx + dx, 0.3, hz + dz, k % 3 ? 0xd8ccb4 : 0x6a5a48, k * 0.3, k, k * 0.2, 'plaster');
+        }
+        this.sign(['SEA ISLE', 'HOTEL'], { x: hx + 6, y: 1.2, z: hz + D / 2 + 3, yaw: 0.35, w: 4.2, h: 1.1, fg: '#5a5a5a', fg2: '#4a4a4a', bg: '#d8ccb4', day: 1, noBack: false });
+        this.poi(hx, hz, 'x', 'SEA ISLE HOTEL (RUINS)');
+
+        /* -- the old toll bridge to Follet's Island: out over the pass, and gone in the middle -- */
+        this.box(4, 3, 3.6, -6945, 0, 186, 0xe8e0cc, { surface: 'wood' });
+        this.deco(4.6, 0.3, 4.2, -6945, 3, 186, 0x8a2a22);
+        this.deck(-7120, -6990, 166, 174, 0x7a6a52);
+        for (x = -6995; x > -7120; x -= 10) { this.cyl(0.35, 4, x, -3.4, 165.5, 0x5a4a3a, 8, 'wood', false); this.cyl(0.35, 4, x, -3.4, 174.5, 0x5a4a3a, 8, 'wood', false); }
+        for (x = -7150; x > -7300; x -= 10) { this.cyl(0.35, 4, x, -3.4, 165.5, 0x5a4a3a, 8, 'wood', false); this.cyl(0.35, 4, x, -3.4, 174.5, 0x5a4a3a, 8, 'wood', false); }
+        this.deco(150, 0.4, 8, -7225, 0.3, 170, 0x7a6a52);
+        tilt(26, 0.4, 8, -7134, -1.6, 170, 0x6a5a44, 0, 0, -0.22, 'wood');
+        for (k = 0; k < 3; k++) { this.deco(2.4, 0.3, 0.2, -7000 - k * 0.1, 0.5 + k * 0.5, 170, k % 2 ? 0xf2efe6 : 0xc8302a); }
+        this.deco(0.2, 1.6, 0.2, -7001, 0, 168.6, 0x3a3a38); this.deco(0.2, 1.6, 0.2, -7001, 0, 171.4, 0x3a3a38);
+        this.sign(['BRIDGE OUT', 'NO CROSSING TO FOLLET\u2019S ISLAND'], { x: -6996, y: 2.4, z: 170, yaw: Math.PI / 2, w: 3.6, h: 1, fg: '#c8302a', fg2: '#2a2a2a', bg: '#f2efe6', day: 1 });
+        this.poi(-7050, 170, 'x', 'OLD SAN LUIS TOLL BRIDGE');
+    },
+
     /* ---- mid-island: Bayou Shore, Fort Crockett's guns, 61st Street ---------- */
     _midIsland: function () {
         var self = this, k, i;
