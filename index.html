@@ -13233,6 +13233,39 @@ var Districts = {
             style: 'mansion', hmin: 8, hmax: 13,
             palette: { wall: 0xe6dccb, roofIdx: 0, accentIdx: 0 },
             heroes: ['Bayou Shore Country Club'], built: true
+        },
+        /* ---- the West End ---- */
+        {
+            id: 'scholes-heights', name: 'SCHOLES HEIGHTS',
+            blurb: 'Airport bungalows. The planes come in low enough to read your mail.',
+            x: -2050, z: 330, w: 680, d: 80,
+            style: 'house', hmin: 4, hmax: 6,
+            palette: { wall: 0xd2c6a8, roofIdx: 2, accentIdx: 2 },
+            heroes: []
+        },
+        {
+            id: 'pirates-cove', name: "PIRATES' COVE",
+            blurb: 'Beach houses for people who own the beach. Private road, private sand, private arrangements.',
+            x: -3300, z: 300, w: 560, d: 120,
+            style: 'mansion', hmin: 7, hmax: 11,
+            palette: { wall: 0xeee6d4, roofIdx: 3, accentIdx: 2 },
+            heroes: []
+        },
+        {
+            id: 'jamaica-beach', name: 'JAMAICA BEACH',
+            blurb: 'Stilt houses, bait shops and a canal you can fish from the porch. Nobody asks where the boat money came from.',
+            x: -4500, z: 200, w: 520, d: 220,
+            style: 'stilt', hmin: 4, hmax: 6,
+            palette: { wall: 0xc8d8d0, roofIdx: 2, accentIdx: 2 },
+            heroes: []
+        },
+        {
+            id: 'west-beach', name: 'WEST BEACH',
+            blurb: 'Motor hotels, beer joints and a jukebox at the end of the world. Last stop before the pass.',
+            x: -5500, z: 230, w: 500, d: 110,
+            style: 'resort', hmin: 5, hmax: 9,
+            palette: { wall: 0xe8c8a8, roofIdx: 1, accentIdx: 3 },
+            heroes: []
         }
     ],
 
@@ -14181,11 +14214,21 @@ var World = {
                 for (j = 0; j < nv; j++) { g.tx.push(Math.abs(n[j * 3 + 1]) > 0.7 ? kk[0] : kk[1]); }
             } else if (cc) { for (j = 0; j < cc.length; j++) { g.col.push(cc[j]); } }
             src.dispose();
-            this.scene.remove(m);
+            /* marked, not removed: see below */
+            m.userData._bakedOut = true;
             m.geometry.dispose();
-            var hi = this.hitMeshes.indexOf(m);
-            if (hi >= 0) { this.hitMeshes.splice(hi, 1); }
         }
+        /* out of the scene and the hit list in one pass each - removing them one
+           by one shifted a 100k-long array every time, and was most of the load */
+        var sc = this.scene.children, keep = [], q;
+        for (q = 0; q < sc.length; q++) {
+            if (sc[q].userData && sc[q].userData._bakedOut) { sc[q].parent = null; } else { keep.push(sc[q]); }
+        }
+        this.scene.children = keep;
+        var H = this.hitMeshes, hk = [];
+        for (q = 0; q < H.length; q++) { if (!(H[q].userData && H[q].userData._bakedOut)) { hk.push(H[q]); } }
+        H.length = 0;
+        for (q = 0; q < hk.length; q++) { H.push(hk[q]); }
 
         var calls = 0;
         for (key in groups) {
@@ -15711,6 +15754,16 @@ var Routes = {
         /* the old-money loop along West Bay, off Stewart Road and back */
         { name: 'BAYOU SHORE DRIVE', cls: 'street', smooth: true,
           pts: [[-1000, -40], [-985, -160], [-1010, -300], [-1120, -385], [-1300, -395], [-1440, -350], [-1480, -220], [-1480, -40]] },
+        /* the West End: Beach Road along the Gulf, Stewart Road along the bay, ranch roads between */
+        { name: 'BEACH ROAD', cls: 'rural', smooth: true,
+          pts: [[-1600, 372], [-2000, 385], [-2600, 395], [-3200, 388], [-3600, 380], [-4000, 370], [-4800, 342],
+                [-5200, 320], [-5800, 280], [-6200, 244], [-6600, 200], [-6900, 170]] },
+        { name: 'STEWART ROAD', cls: 'rural', smooth: true,
+          pts: [[-1600, -40], [-1640, -200], [-1720, -340], [-1900, -385], [-2300, -365], [-2600, -300], [-3000, -210],
+                [-3600, -150], [-4200, -110], [-4800, -60], [-5400, 10], [-5900, 140], [-6200, 244]] },
+        { name: 'EIGHT MILE ROAD', cls: 'rural', smooth: false, pts: [[-2600, -300], [-2600, 395]] },
+        { name: 'SWEETWATER ROAD', cls: 'dirt', smooth: false, pts: [[-3600, -150], [-3600, 380]] },
+        { name: 'JAMAICA BEACH ROAD', cls: 'rural', smooth: false, pts: [[-4800, -60], [-4800, 342]] },
         { name: 'THE CAUSEWAY', cls: 'highway', bridge: true, smooth: false,
           pts: [[-880, -40], [-880, -440], [-880, -1240], [-880, -1350]] }
     ],
@@ -15889,7 +15942,20 @@ var Routes = {
         }
         var m = this.corridor(r) + 10;
         r.bb = [b[0] - m, b[1] - m, b[2] + m, b[3] + m];
+        /* a grid of 50m cells, each listing the pieces that pass near it: the
+           generators ask "is this near a road?" tens of thousands of times, and
+           a long country road has hundreds of pieces */
+        var C = this.CELL, M = this.corridor(r) + 30, k, P = r.P, cx, cz;
+        r.grid = {};
+        for (k = 0; k < P.length - 1; k++) {
+            var x0 = Math.floor((Math.min(P[k][0], P[k + 1][0]) - M) / C), x1 = Math.floor((Math.max(P[k][0], P[k + 1][0]) + M) / C);
+            var z0 = Math.floor((Math.min(P[k][1], P[k + 1][1]) - M) / C), z1 = Math.floor((Math.max(P[k][1], P[k + 1][1]) + M) / C);
+            for (cx = x0; cx <= x1; cx++) {
+                for (cz = z0; cz <= z1; cz++) { (r.grid[cx + ',' + cz] || (r.grid[cx + ',' + cz] = [])).push(k); }
+            }
+        }
     },
+    CELL: 50,
     /* the massing generators keep their buildings off a route's corridor */
     _reserve: function () {
         var i, k, r, P, half;
@@ -15908,8 +15974,11 @@ var Routes = {
         /* asked before prepare() (the seafront lamps are placed early): no route yet */
         if (!r.bb) { return null; }
         if (x < r.bb[0] || x > r.bb[2] || z < r.bb[1] || z > r.bb[3]) { return null; }
-        var k, P = r.P, best = 1e9, bk = -1;
-        for (k = 0; k < P.length - 1; k++) {
+        var K = r.grid ? r.grid[Math.floor(x / this.CELL) + ',' + Math.floor(z / this.CELL)] : null;
+        if (r.grid && !K) { return null; }             /* nothing within 30m of the corridor */
+        var i, k, P = r.P, best = 1e9, bk = -1, n = K ? K.length : P.length - 1;
+        for (i = 0; i < n; i++) {
+            k = K ? K[i] : i;
             var d = Roads._distToSeg(x, z, [P[k][0], P[k][1], P[k + 1][0], P[k + 1][1]]);
             if (d < best) { best = d; bk = k; }
         }
@@ -17180,11 +17249,13 @@ var City = {
         var grass = [0x6f7c46, 0x7b8150, 0x66733f, 0x8a8a5a], dune = 0xcdbd92;
         var scrubG = [0x4a5e34, 0x55693a, 0x3f5530, 0x5e6e40], oat = [0xb8ac78, 0xa89c68, 0x9aa060];
         this._seed(81959);
-        for (x = -1700; x <= 560; x += STEP) {
+        for (x = -7100; x <= 560; x += STEP) {
             for (z = -560; z <= 450; z += STEP) {
                 /* each cell its own seed: land added or taken away elsewhere no
                    longer moves every bush downtown */
                 this._seed(81959 + Math.floor(x * 7919 + z * 104729));
+                /* past the airfield it is open country: a third as thick, so the load holds */
+                if (x < -1700 && this._rand(0, 1) > 0.35) { continue; }
                 var px = x + this._rand(-4, 4), pz = z + this._rand(-4, 4);
                 if (this._rand(0, 1) > q) { continue; }
                 if (!this._onLand(px, pz)) { continue; }
