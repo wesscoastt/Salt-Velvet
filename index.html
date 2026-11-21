@@ -8483,12 +8483,14 @@ function trousers(d       , c             , kind        )       {
   }
   grid(d.B.garment, {
     us: around(18),
-    vs: range(0.78, PELVIS_Y + 0.1, 5),
+    // The seat starts inside the legs and swells out over the hips, so its lower edge is a crotch
+    // between them, not a hem drawn across the front of both thighs.
+    vs: range(0.83, PELVIS_Y + 0.1, 6),
     wrapU: true,
     flip: true,
     at: (th, y, out) => {
-      const k = smoothstep(0.78, 0.9, y);
-      return out.set(Math.sin(th) * lerp(0.15, 0.178, k) * w, y, Math.cos(th) * lerp(0.1, 0.13, k) * w);
+      const k = smoothstep(0.83, 0.95, y);
+      return out.set(Math.sin(th) * lerp(0.12, 0.178, k) * w, y, Math.cos(th) * lerp(0.07, 0.13, k) * w);
     },
     paint: () => ({ c, kind }),
     weights: () => [BI.pelvis, 1],
@@ -8594,7 +8596,9 @@ function shirtsleevesOutfit(d       )       {
   trousers(d, C.legs, KIND.wool);
   const torso = new Shell(torsoKeys(m, 0.012, 0.006));
   const open = vOpen(1.44, 0.2);
-  shellMesh(d, torso, 1.555, 0.9, {
+  // The shirt stops under the belt: the trousers own everything below it (a shirt shell carried
+  // down to the hips read as a rigid panel over the fly).
+  shellMesh(d, torso, 1.555, 0.965, {
     n: 36, step: 0.035, bellyOff: true,
     paint: (th, y) => {
       const a = Math.abs(Math.atan2(Math.sin(th), Math.cos(th)));
@@ -13002,9 +13006,18 @@ var Districts = {
        there is open water to swim in - the old bounds stopped at the shore,
        which meant you could never actually get into the Gulf. Past this is
        an invisible wall, the way GTA handles the same problem. */
-    BOUNDS: { minX: -1700, maxX: 760, minZ: -560, maxZ: 660 },
+    BOUNDS: { minX: -7300, maxX: 1700, minZ: -2700, maxZ: 900 },
     /* the land itself, for anything that needs the old figure */
-    ISLAND_BOUNDS: { minX: -1620, maxX: 520, minZ: -460, maxZ: 380 },
+    ISLAND_BOUNDS: { minX: -7050, maxX: 560, minZ: -500, maxZ: 450 },
+    /* The county across West Bay. It was built straight west of the island,
+       where Galveston's West End should run, so it was lifted whole across the
+       bay: every mainland district, road, lot and landmark sits MAIN_DZ metres
+       north of where it was first laid out. Hand-placed mainland pieces are
+       built inside World.shift so they land with it. */
+    MAIN_DZ: -1650,
+    /* Offatts Bayou's west bank: the island past it is new ground, laid out
+       district by district, so the old fillers leave it alone */
+    BAYOU_X: -620,
 
     /* the Blender blockout is the true-scale map; the playable island is
        roughly this fraction of it. Kept so the two can be reconciled. */
@@ -13141,7 +13154,7 @@ var Districts = {
         {
             id: 'cadiz-flats', name: 'CADIZ FLATS',
             blurb: 'Mainland industrial outskirts. The road in.',
-            x: -928, z: -48, w: 224, d: 284,
+            x: -928, z: -1698, w: 224, d: 284,
             style: 'industrial', hmin: 6, hmax: 13,
             palette: { wall: 0x5a5044, roofIdx: 0, accentIdx: 3 },
             heroes: ['Delmar Petroleum & Roadhouse']
@@ -13151,7 +13164,7 @@ var Districts = {
         {
             id: 'pelican-refinery', name: 'PELICAN REFINERY',
             blurb: 'Cracking towers and tank farms. The air tastes of it.',
-            x: -1220, z: -308, w: 640, d: 200,
+            x: -1220, z: -1958, w: 640, d: 200,
             style: 'industrial', hmin: 10, hmax: 28,
             palette: { wall: 0x5c5a52, roofIdx: 2, accentIdx: 3 },
             heroes: ['Pelican Refinery', 'Tank farm']
@@ -13159,7 +13172,7 @@ var Districts = {
         {
             id: 'highway-87', name: 'HIGHWAY 87',
             blurb: 'Motor courts, a drive-in and a diner that never closes.',
-            x: -1135, z: -48, w: 180, d: 284,
+            x: -1135, z: -1698, w: 180, d: 284,
             style: 'commercial', hmin: 5, hmax: 10,
             palette: { wall: 0xc8a878, roofIdx: 1, accentIdx: 1 },
             heroes: ['Starlite Drive-In', 'Magnolia Motor Court']
@@ -13167,7 +13180,7 @@ var Districts = {
         {
             id: 'san-jacinto', name: 'SAN JACINTO',
             blurb: 'Adobe and stucco. A plaza, a cantina, a church bell.',
-            x: -1390, z: -50, w: 310, d: 280,
+            x: -1390, z: -1700, w: 310, d: 280,
             style: 'rowhouse', hmin: 6, hmax: 12,
             palette: { wall: 0xc88a5a, roofIdx: 1, accentIdx: 2 },
             heroes: ['Plaza San Jacinto', 'Cantina La Paloma']
@@ -13175,7 +13188,7 @@ var Districts = {
         {
             id: 'magnolia-park', name: 'MAGNOLIA PARK',
             blurb: 'New tract houses, carports, and a wife waiting in each.',
-            x: -1058, z: 202, w: 334, d: 196,
+            x: -1058, z: -1448, w: 334, d: 196,
             style: 'house', hmin: 5, hmax: 9,
             palette: { wall: 0xd8c8a8, roofIdx: 3, accentIdx: 2 },
             heroes: ['Magnolia Elementary']
@@ -13183,10 +13196,43 @@ var Districts = {
         {
             id: 'oleander', name: 'OLEANDER',
             blurb: 'The refinery managers\u2019 street. Live oaks and white columns.',
-            x: -1390, z: 198, w: 310, d: 204,
+            x: -1390, z: -1452, w: 310, d: 204,
             style: 'mansion', hmin: 9, hmax: 15,
             palette: { wall: 0xe8e0cc, roofIdx: 0, accentIdx: 0 },
             heroes: ['Oleander Country Club']
+        },
+        /* ---- mid-island, west of Offatts Bayou ---- */
+        {
+            id: 'fort-crockett', name: 'FORT CROCKETT',
+            blurb: 'Coast artillery that never fired a shot in anger. The Army still mows the lawn.',
+            x: -740, z: 270, w: 240, d: 170,
+            style: 'civic', hmin: 6, hmax: 10,
+            palette: { wall: 0xd8d0bc, roofIdx: 2, accentIdx: 4 },
+            heroes: ['Battery Hoskins', 'Parade Ground']
+        },
+        {
+            id: 'sixty-first', name: 'SIXTY-FIRST STREET',
+            blurb: 'Motor courts, burger stands and a neon cowboy. Everybody here is passing through.',
+            x: -905, z: 165, w: 90, d: 410,
+            style: 'commercial', hmin: 4, hmax: 8,
+            palette: { wall: 0xc9a27a, roofIdx: 1, accentIdx: 3 },
+            heroes: []
+        },
+        {
+            id: 'lindale', name: 'LINDALE',
+            blurb: 'GI Bill bungalows, one Ford per driveway, and a widow at every window.',
+            x: -1275, z: 165, w: 650, d: 400,
+            style: 'house', hmin: 4, hmax: 7,
+            palette: { wall: 0xcfc3a3, roofIdx: 1, accentIdx: 2 },
+            heroes: []
+        },
+        {
+            id: 'bayou-shore', name: 'BAYOU SHORE',
+            blurb: 'Old money on the water. The lawns are trimmed with nail scissors and so are the alibis.',
+            x: -1240, z: -230, w: 520, d: 340,
+            style: 'mansion', hmin: 8, hmax: 13,
+            palette: { wall: 0xe6dccb, roofIdx: 0, accentIdx: 0 },
+            heroes: []
         }
     ],
 
@@ -13978,6 +14024,7 @@ var Tex = {
 var World = {
     scene: null,
     colliders: [],        /* {box:THREE.Box3, tall:bool}                      */
+    shift: null,          /* {dx, dz} while legacy mainland pieces are placed  */
     hitMeshes: [],        /* raycast targets for bullets                      */
     coverPoints: [],      /* {pos:Vec3, normal:Vec3, low:bool, taken:id|null} */
     spawns: { player: null, enemies: [], brawlers: [], bartender: null },
@@ -14223,6 +14270,7 @@ var World = {
     /* --------------------------------------------------------------- pieces */
     addBox: function (w, h, d, x, y, z, mat, opts) {
         opts = opts || {};
+        if (this.shift) { x += this.shift.dx; z += this.shift.dz; }
         /* The manifest outlives baking, which destroys the source meshes.
            It is what lets the asset pipeline rebuild this world in Blender. */
         this.manifest.push({
@@ -15229,7 +15277,11 @@ var Roads = {
     CLASS: {
         arterial: { w: 16, walk: 6.0, centreLine: true,  name: 'BOULEVARD' },
         street:   { w: 11, walk: 4.5, centreLine: false, name: 'STREET' },
-        lane:     { w: 7,  walk: 0,   centreLine: false, name: 'LANE' }
+        lane:     { w: 7,  walk: 0,   centreLine: false, name: 'LANE' },
+        /* route-only classes (Routes): out of town, where there is no pavement */
+        highway:  { w: 14, walk: 0,   centreLine: true,  name: 'HIGHWAY' },
+        rural:    { w: 9,  walk: 0,   centreLine: true,  name: 'ROAD' },
+        dirt:     { w: 6.5, walk: 0,  centreLine: false, name: 'TRACK' }
     },
 
     /* [x1, z1, x2, z2, class, name]
@@ -15275,19 +15327,34 @@ var Roads = {
         /* Harbor Boulevard turns south at its west end onto the causeway,
            which runs at grade on an embankment across the bay */
         [-560, -40, -560, 0, 'arterial', 'CAUSEWAY ROAD'],
-        [-1560, -40, -560, -40, 'arterial', 'CAUSEWAY ROAD'],
+        /* across Offatts Bayou on the old embankment, to the foot of the causeway */
+        [-880, -40, -560, -40, 'arterial', 'CAUSEWAY ROAD'],
 
-        /* --- the mainland grid ------------------------------------------ */
-        [-880, -330, -880, 300, 'arterial', 'GULF FREEWAY'],
-        [-1050, -330, -1050, 300, 'street', 'MAGNOLIA AVENUE'],
-        [-1230, -330, -1230, 300, 'street', 'SAN JACINTO STREET'],
-        [-1450, -330, -1450, 300, 'street', 'LAMAR STREET'],
-        [-1560, -330, -1560, 300, 'street', 'WEST LOOP'],
-        [-1560, -330, -880, -330, 'street', 'DOCK ROAD'],
-        [-1560, -200, -880, -200, 'arterial', 'PELICAN ROAD'],
-        [-1560, 100, -880, 100, 'street', 'BAYSHORE DRIVE'],
-        [-1560, 230, -880, 230, 'street', 'OLEANDER DRIVE'],
-        [-1560, 300, -880, 300, 'street', 'SHORE ROAD'],
+        /* --- mid-island, west of Offatts Bayou ------------------------------ */
+        [-1600, -40, -880, -40, 'arterial', 'STEWART ROAD'],
+        [-880, -40, -880, 372, 'arterial', 'SIXTY-FIRST STREET'],
+        [-1000, -40, -1000, 372, 'street', 'SIXTY-NINTH STREET'],
+        [-1120, -40, -1120, 372, 'street', 'SEVENTY-FIFTH STREET'],
+        [-1240, -40, -1240, 372, 'street', 'EIGHTY-FIRST STREET'],
+        [-1360, -40, -1360, 372, 'street', 'EIGHTY-SEVENTH STREET'],
+        [-1480, -40, -1480, 372, 'street', 'NINETY-THIRD STREET'],
+        [-1600, -40, -1600, 372, 'street', 'HEARDS LANE'],
+        [-1600, 80, -880, 80, 'street', 'AVENUE P'],
+        [-1600, 200, -880, 200, 'street', 'AVENUE S'],
+        [-880, 220, -660, 220, 'street', 'FORT CROCKETT ROAD'],
+
+        /* --- the mainland grid (across West Bay: Districts.MAIN_DZ) -------- */
+        [-1560, -1690, -880, -1690, 'arterial', 'VIRGINIA POINT ROAD'],
+        [-880, -1980, -880, -1350, 'arterial', 'GULF FREEWAY'],
+        [-1050, -1980, -1050, -1350, 'street', 'MAGNOLIA AVENUE'],
+        [-1230, -1980, -1230, -1350, 'street', 'SAN JACINTO STREET'],
+        [-1450, -1980, -1450, -1350, 'street', 'LAMAR STREET'],
+        [-1560, -1980, -1560, -1350, 'street', 'WEST LOOP'],
+        [-1560, -1980, -880, -1980, 'street', 'DOCK ROAD'],
+        [-1560, -1850, -880, -1850, 'arterial', 'PELICAN ROAD'],
+        [-1560, -1550, -880, -1550, 'street', 'BAYSHORE DRIVE'],
+        [-1560, -1420, -880, -1420, 'street', 'OLEANDER DRIVE'],
+        [-1560, -1350, -880, -1350, 'street', 'SHORE ROAD'],
 
         /* --- the harbour loop around the Wharf 9 warehouse --------------- */
         /* Traffic has always driven this loop (circuit 0), but it was never a
@@ -15303,6 +15370,7 @@ var Roads = {
 
     init: function () {
         this._buildReservations();
+        if (typeof Routes !== 'undefined') { Routes.prepare(); }
     },
 
     cls: function (seg) { return this.CLASS[seg[4]] || this.CLASS.street; },
@@ -15399,6 +15467,16 @@ var Roads = {
                 half = cj.w / 2 + (this._priority(j, i) ? cj.walk : 0);
             }
             out.push([along - half, along + half]);
+        }
+        /* routes crossing or joining this road open its pavement (never its
+           carriageway: the two lie at one height in one material); a route
+           that arrives from one side opens only that side */
+        var RC = (typeof Routes !== 'undefined' && Routes.gridCross[i]) || [], q;
+        if (kind !== 'road') {
+            for (q = 0; q < RC.length; q++) {
+                if (RC[q].side && RC[q].side * lat < 0) { continue; }
+                out.push([RC[q].along - RC[q].half, RC[q].along + RC[q].half]);
+            }
         }
         return out;
     },
@@ -15505,6 +15583,7 @@ var Roads = {
                 }
             }
         }
+        if (typeof Routes !== 'undefined') { Routes.build(matFn); }
     },
 
     /* ----------------------------------------------------------- lane maths
@@ -15557,7 +15636,395 @@ var Roads = {
             c = this.cls(s);
             if (this._distToSeg(x, z, s) < c.w / 2) { return s; }
         }
+        if (typeof Routes !== 'undefined' && Routes.LIST.length) { return Routes.onRoad(x, z); }
         return null;
+    }
+};
+
+
+/* ===== 21b_routes.js ===== */
+/* ==========================================================================
+   PORT HALCYON - routes: roads at any angle
+   Roads.SEGMENTS is a ruler grid: every road in it runs due north-south or
+   east-west, and twenty-odd systems lean on that (junction cutting, the
+   traffic graph, lights, parking, the walkers). A Galveston has the
+   seawall's long bend, the causeway angling off across the bay, ranch roads
+   that follow a fence line and a beach road that follows the dunes.
+
+   A route is a polyline - smoothed into a curve if it asks - that joins the
+   grid wherever it touches it. It is laid as a chain of short rotated slabs
+   through World.addBox, so it bakes, textures, takes bullets and carries
+   feet and tyres (World.groundY) exactly like the grid streets. The grid
+   code never sees a route; the few places that must (pavement cuts at a
+   crossing, the traffic graph, onRoad, the map) ask Routes.
+
+   [x, z] points in metres, +x east, -z north, like everything else.
+   ========================================================================== */
+
+var Routes = {
+    /* class -> how it is laid. w/walk come from Roads.CLASS; this adds the
+       verge and what the surface is made of */
+    STYLE: {
+        highway:  { shoulder: 2.4, sh: 0x6e6a5c, paint: true },
+        rural:    { shoulder: 1.4, sh: 0x76705e, paint: true },
+        dirt:     { shoulder: 0,   sh: 0,        paint: false, surface: 0x8a7656 },
+        arterial: { shoulder: 0,   sh: 0,        paint: true },
+        street:   { shoulder: 0,   sh: 0,        paint: false },
+        lane:     { shoulder: 0,   sh: 0,        paint: false }
+    },
+
+    /* { name, cls, pts: [[x, z], ...], smooth, oneway (1 = drawn direction
+       only), bridge (an embankment carries it over water) } */
+    LIST: [
+        /* the seawall runs on west from the hotels, thirty metres back from the Gulf */
+        { name: 'SEAWALL BOULEVARD', cls: 'arterial', smooth: true,
+          pts: [[-330, 300], [-370, 322], [-420, 348], [-480, 364], [-560, 372], [-1600, 372]] },
+        /* the old-money loop along West Bay, off Stewart Road and back */
+        { name: 'BAYOU SHORE DRIVE', cls: 'street', smooth: true,
+          pts: [[-1000, -40], [-985, -160], [-1010, -300], [-1120, -385], [-1300, -395], [-1440, -350], [-1480, -220], [-1480, -40]] },
+        { name: 'THE CAUSEWAY', cls: 'highway', bridge: true, smooth: false,
+          pts: [[-880, -40], [-880, -440], [-880, -1240], [-880, -1350]] }
+    ],
+
+    /* filled by prepare() */
+    gridCross: {},     /* grid segment index -> [{ along, half, side }] */
+    _ready: false,
+
+    TEST: [
+        { name: 'MAGNOLIA CUTOFF', cls: 'highway', smooth: false,
+          pts: [[-1450, -200], [-1050, 100]] },
+        { name: 'PECAN BEND', cls: 'rural', smooth: true,
+          pts: [[-1230, 60], [-1300, 30], [-1380, 85], [-1450, 55]] },
+        { name: 'OLD FENCE ROAD', cls: 'dirt', smooth: true,
+          pts: [[-1560, 150], [-1625, 168], [-1665, 238], [-1605, 282], [-1560, 268]] }
+    ],
+
+    cls: function (r) { return Roads.CLASS[r.cls] || Roads.CLASS.street; },
+    style: function (r) { return this.STYLE[r.cls] || this.STYLE.street; },
+    /* half the width the road claims, verge and pavement included */
+    corridor: function (r) { var c = this.cls(r); return c.w / 2 + c.walk + this.style(r).shoulder; },
+
+    /* ------------------------------------------------------------ setup */
+    prepare: function () {
+        if (this._ready) { return; }
+        this._ready = true;
+        if ((/[?&]routetest/).test(window.location.search)) { this.LIST = this.LIST.concat(this.TEST); }
+        var i, r;
+        for (i = 0; i < this.LIST.length; i++) {
+            r = this.LIST[i];
+            r.P = this._densify(r.pts, r.smooth);
+            this._snapEnds(r, i);
+        }
+        for (i = 0; i < this.LIST.length; i++) { this._crossGrid(this.LIST[i]); }
+        this._crossRoutes();
+        for (i = 0; i < this.LIST.length; i++) { this._index(this.LIST[i]); }
+        this._reserve();
+    },
+
+    /* a curve through the points (Catmull-Rom), every ~6m; a straight route
+       keeps its corners but is cut every 60m so it bakes into tiles */
+    _densify: function (pts, smooth) {
+        var out = [], i, k, n, a, b, c, d, t, t2, t3;
+        if (pts.length < 2) { return pts.slice(); }
+        for (i = 0; i < pts.length - 1; i++) {
+            a = pts[Math.max(0, i - 1)]; b = pts[i]; c = pts[i + 1]; d = pts[Math.min(pts.length - 1, i + 2)];
+            var L = Math.sqrt((c[0] - b[0]) * (c[0] - b[0]) + (c[1] - b[1]) * (c[1] - b[1]));
+            n = Math.max(1, Math.ceil(L / (smooth ? 6 : 60)));
+            for (k = 0; k < n; k++) {
+                t = k / n;
+                if (smooth) {
+                    t2 = t * t; t3 = t2 * t;
+                    out.push([0.5 * (2 * b[0] + (-a[0] + c[0]) * t + (2 * a[0] - 5 * b[0] + 4 * c[0] - d[0]) * t2 + (-a[0] + 3 * b[0] - 3 * c[0] + d[0]) * t3),
+                              0.5 * (2 * b[1] + (-a[1] + c[1]) * t + (2 * a[1] - 5 * b[1] + 4 * c[1] - d[1]) * t2 + (-a[1] + 3 * b[1] - 3 * c[1] + d[1]) * t3)]);
+                } else {
+                    out.push([b[0] + (c[0] - b[0]) * t, b[1] + (c[1] - b[1]) * t]);
+                }
+            }
+        }
+        out.push(pts[pts.length - 1].slice());
+        return out;
+    },
+
+    /* an end that stops on a grid road lands on its centre line, so the
+       traffic graph meets it at one node; an end near another route's point
+       takes that point */
+    _snapEnds: function (r, ri) {
+        var ends = [0, r.P.length - 1], e, i, s, c, k;
+        r.joins = [];
+        for (e = 0; e < 2; e++) {
+            var idx = ends[e], p = r.P[idx], nb = r.P[e ? idx - 1 : 1], done = false;
+            for (i = 0; i < Roads.SEGMENTS.length && !done; i++) {
+                s = Roads.SEGMENTS[i]; c = Roads.cls(s);
+                if (Roads._distToSeg(p[0], p[1], s) > c.w / 2 + 6) { continue; }
+                var v = Roads.isVertical(s);
+                var lo = v ? Math.min(s[1], s[3]) : Math.min(s[0], s[2]), hi = v ? Math.max(s[1], s[3]) : Math.max(s[0], s[2]);
+                var along = SV.util.clamp(v ? p[1] : p[0], lo, hi);
+                p[0] = v ? s[0] : along; p[1] = v ? along : s[1];
+                var side = v ? (nb[0] > s[0] ? 1 : -1) : (nb[1] > s[1] ? 1 : -1);
+                this._gridCut(i, along, r, Math.PI / 2 - this._angleTo(r, idx, e, s), side);
+                r.joins.push({ end: idx, seg: i });
+                done = true;
+                /* an end on a crossroads opens every road that meets there */
+                var j2, s2, v2;
+                for (j2 = 0; j2 < Roads.SEGMENTS.length; j2++) {
+                    if (j2 === i) { continue; }
+                    s2 = Roads.SEGMENTS[j2];
+                    if (Roads._distToSeg(p[0], p[1], s2) > Roads.cls(s2).w / 2 + 1) { continue; }
+                    v2 = Roads.isVertical(s2);
+                    this._gridCut(j2, v2 ? p[1] : p[0], r, Math.PI / 2 - this._angleTo(r, idx, e, s2),
+                                  v2 ? (nb[0] > s2[0] ? 1 : -1) : (nb[1] > s2[1] ? 1 : -1));
+                    r.joins.push({ end: idx, seg: j2 });
+                }
+            }
+            for (i = 0; i < ri && !done; i++) {
+                var o = this.LIST[i];
+                for (k = 0; k < o.P.length; k++) {
+                    if ((o.P[k][0] - p[0]) * (o.P[k][0] - p[0]) + (o.P[k][1] - p[1]) * (o.P[k][1] - p[1]) < 64) {
+                        p[0] = o.P[k][0]; p[1] = o.P[k][1]; done = true; break;
+                    }
+                }
+            }
+        }
+    },
+    /* the angle between the route's first (or last) piece and a grid road */
+    _angleTo: function (r, idx, last, s) {
+        var a = r.P[idx], b = r.P[last ? idx - 1 : idx + 1];
+        var dx = b[0] - a[0], dz = b[1] - a[1], L = Math.sqrt(dx * dx + dz * dz) || 1;
+        var along = Roads.isVertical(s) ? Math.abs(dz) / L : Math.abs(dx) / L;
+        return Math.acos(SV.util.clamp(along, 0, 1));          /* 0 = parallel */
+    },
+    /* the grid road's pavement opens where the route comes through it */
+    _gridCut: function (i, along, r, skew, side) {
+        var sn = Math.max(0.35, Math.cos(skew));                /* sin of the crossing angle */
+        (this.gridCross[i] || (this.gridCross[i] = [])).push({ along: along, half: (this.cls(r).w / 2 + this.cls(r).walk + 1) / sn, side: side || 0 });
+    },
+
+    /* where a route runs across a grid road mid-way: a point on both */
+    _crossGrid: function (r) {
+        var k, i, s, out = [r.P[0]];
+        for (k = 0; k < r.P.length - 1; k++) {
+            var a = r.P[k], b = r.P[k + 1], hits = [];
+            for (i = 0; i < Roads.SEGMENTS.length; i++) {
+                s = Roads.SEGMENTS[i];
+                var h = this._isect(a, b, [s[0], s[1]], [s[2], s[3]]);
+                if (!h || h.t < 0.001 || h.t > 0.999) { continue; }
+                if (r.joins.some(function (j) { return j.seg === i && (j.end === 0 ? k === 0 : k === r.P.length - 2); })) { continue; }
+                var v = Roads.isVertical(s), dx = b[0] - a[0], dz = b[1] - a[1], L = Math.sqrt(dx * dx + dz * dz) || 1;
+                var th = Math.acos(SV.util.clamp(v ? Math.abs(dz) / L : Math.abs(dx) / L, 0, 1));   /* 0 = parallel */
+                hits.push({ t: h.t, p: [h.x, h.z] });
+                this._gridCut(i, v ? h.z : h.x, r, Math.PI / 2 - th, 0);
+                (r.cross || (r.cross = [])).push({ x: h.x, z: h.z, seg: i });
+            }
+            hits.sort(function (p, q) { return p.t - q.t; });
+            for (i = 0; i < hits.length; i++) { out.push(hits[i].p); }
+            out.push(b);
+        }
+        r.P = out;
+    },
+    /* routes that cross each other share the crossing point */
+    _crossRoutes: function () {
+        var i, j, k, m;
+        for (i = 0; i < this.LIST.length; i++) {
+            for (j = i + 1; j < this.LIST.length; j++) {
+                var A = this.LIST[i], B = this.LIST[j], found = true, guard = 0;
+                while (found && guard++ < 50) {
+                    found = false;
+                    for (k = 0; k < A.P.length - 1 && !found; k++) {
+                        for (m = 0; m < B.P.length - 1 && !found; m++) {
+                            var h = this._isect(A.P[k], A.P[k + 1], B.P[m], B.P[m + 1]);
+                            if (!h || h.t < 0.01 || h.t > 0.99 || h.u < 0.01 || h.u > 0.99) { continue; }
+                            A.P.splice(k + 1, 0, [h.x, h.z]);
+                            B.P.splice(m + 1, 0, [h.x, h.z]);
+                            found = true;
+                        }
+                    }
+                }
+            }
+        }
+    },
+    _isect: function (a, b, c, d) {
+        var rx = b[0] - a[0], rz = b[1] - a[1], sx = d[0] - c[0], sz = d[1] - c[1];
+        var den = rx * sz - rz * sx;
+        if (Math.abs(den) < 1e-9) { return null; }
+        var qx = c[0] - a[0], qz = c[1] - a[1];
+        var t = (qx * sz - qz * sx) / den, u = (qx * rz - qz * rx) / den;
+        if (t < 0 || t > 1 || u < 0 || u > 1) { return null; }
+        return { t: t, u: u, x: a[0] + rx * t, z: a[1] + rz * t };
+    },
+    /* a bounding box per route, for the quick tests */
+    _index: function (r) {
+        var i, b = [1e9, 1e9, -1e9, -1e9];
+        for (i = 0; i < r.P.length; i++) {
+            b[0] = Math.min(b[0], r.P[i][0]); b[1] = Math.min(b[1], r.P[i][1]);
+            b[2] = Math.max(b[2], r.P[i][0]); b[3] = Math.max(b[3], r.P[i][1]);
+        }
+        var m = this.corridor(r) + 10;
+        r.bb = [b[0] - m, b[1] - m, b[2] + m, b[3] + m];
+    },
+    /* the massing generators keep their buildings off a route's corridor */
+    _reserve: function () {
+        var i, k, r, P, half;
+        for (i = 0; i < this.LIST.length; i++) {
+            r = this.LIST[i]; P = r.P; half = this.corridor(r) + 1.5;
+            for (k = 0; k < P.length - 1; k++) {
+                Roads.reservations.push({ x0: Math.min(P[k][0], P[k + 1][0]) - half, x1: Math.max(P[k][0], P[k + 1][0]) + half,
+                                          z0: Math.min(P[k][1], P[k + 1][1]) - half, z1: Math.max(P[k][1], P[k + 1][1]) + half });
+            }
+        }
+    },
+
+    /* ----------------------------------------------------------- queries */
+    /* distance from a point to route r's centre line, and the piece */
+    _dist: function (r, x, z) {
+        /* asked before prepare() (the seafront lamps are placed early): no route yet */
+        if (!r.bb) { return null; }
+        if (x < r.bb[0] || x > r.bb[2] || z < r.bb[1] || z > r.bb[3]) { return null; }
+        var k, P = r.P, best = 1e9, bk = -1;
+        for (k = 0; k < P.length - 1; k++) {
+            var d = Roads._distToSeg(x, z, [P[k][0], P[k][1], P[k + 1][0], P[k + 1][1]]);
+            if (d < best) { best = d; bk = k; }
+        }
+        return { d: best, k: bk };
+    },
+    /* on a route's carriageway? returns the piece as a grid-style segment */
+    onRoad: function (x, z, skip) {
+        var i, r, q;
+        for (i = 0; i < this.LIST.length; i++) {
+            r = this.LIST[i];
+            if (r === skip) { continue; }
+            q = this._dist(r, x, z);
+            if (q && q.d < this.cls(r).w / 2) {
+                return [r.P[q.k][0], r.P[q.k][1], r.P[q.k + 1][0], r.P[q.k + 1][1], r.cls, r.name];
+            }
+        }
+        return null;
+    },
+    nearest: function (x, z) {
+        var i, r, q, best = null;
+        for (i = 0; i < this.LIST.length; i++) {
+            r = this.LIST[i];
+            q = this._dist(r, x, z);
+            if (q && (!best || q.d < best.dist)) { best = { name: r.name, dist: q.d, route: r }; }
+        }
+        return best;
+    },
+    /* an embankment carries this point over water */
+    onBridge: function (x, z) {
+        var i, r, q;
+        for (i = 0; i < this.LIST.length; i++) {
+            r = this.LIST[i];
+            if (!r.bridge) { continue; }
+            q = this._dist(r, x, z);
+            if (q && q.d < this.corridor(r) + 5) { return true; }
+        }
+        return false;
+    },
+    /* is this point inside some OTHER road's carriageway (grid or route)? */
+    _inOther: function (x, z, r, pad) {
+        var i, s, c;
+        for (i = 0; i < Roads.SEGMENTS.length; i++) {
+            s = Roads.SEGMENTS[i]; c = Roads.cls(s);
+            if (Roads._distToSeg(x, z, s) < c.w / 2 + c.walk * (pad ? 1 : 0) + (pad || 0)) { return true; }
+        }
+        for (i = 0; i < this.LIST.length; i++) {
+            var o = this.LIST[i];
+            if (o === r) { continue; }
+            var q = this._dist(o, x, z);
+            if (q && q.d < this.cls(o).w / 2 + (pad || 0)) { return true; }
+        }
+        return false;
+    },
+
+    /* ---------------------------------------------------------- geometry */
+    build: function (matFn) {
+        var i;
+        this.stats = { pieces: 0 };
+        for (i = 0; i < this.LIST.length; i++) { this._lay(this.LIST[i], matFn); }
+    },
+    _lay: function (r, matFn) {
+        var c = this.cls(r), st = this.style(r), P = r.P, k, n = P.length;
+        var road = matFn(st.surface || 0x4a4a44), surf = st.surface ? 'dirt' : 'asphalt';
+        var walkM = matFn(0x9a938a), kerbM = matFn(0xb0a99e), shM = st.sh ? matFn(st.sh) : null;
+        var paint = matFn(0xbab39e);
+        paint.polygonOffset = true; paint.polygonOffsetFactor = -2; paint.polygonOffsetUnits = -4;
+        var dist = 0, nextDash = 7;
+        for (k = 0; k < n - 1; k++) {
+            var a = P[k], b = P[k + 1], dx = b[0] - a[0], dz = b[1] - a[1], L = Math.sqrt(dx * dx + dz * dz);
+            if (L < 0.05) { continue; }
+            var ux = dx / L, uz = dz / L, rx = -uz, rz = ux, yaw = Math.atan2(dx, dz);
+            /* run each slab past the joint by enough to close the outside of the bend */
+            var eA = k > 0 ? this._ext(P[k - 1], a, b, c.w / 2 + st.shoulder + c.walk) : 0;
+            var eB = k < n - 2 ? this._ext(a, b, P[k + 2], c.w / 2 + st.shoulder + c.walk) : 0;
+            var len = L + eA + eB, sh = (eB - eA) / 2;
+            var mx = (a[0] + b[0]) / 2 + ux * sh, mz = (a[1] + b[1]) / 2 + uz * sh;
+            World.addBox(c.w, 0.08, len, mx, 0.05, mz, road, { rotY: yaw, solid: false, cast: false, surface: surf, hit: true });
+            this.stats.pieces++;
+            /* the embankment, where it crosses water: fill and riprap down to the bed */
+            if (r.bridge) {
+                World.addBox(c.w + 2 * st.shoulder + 9, 1.7, len, mx, -1.66, mz, matFn(0x6b6658),
+                             { rotY: yaw, solid: false, cast: false, surface: 'stone', hit: false });
+            }
+            var side, lat, cx, cz;
+            for (side = -1; side <= 1; side += 2) {
+                /* verge: gravel, a shade under the asphalt */
+                if (shM) {
+                    lat = side * (c.w / 2 + st.shoulder / 2);
+                    cx = mx + rx * lat; cz = mz + rz * lat;
+                    if (!this._inOther(cx, cz, r, 1)) {
+                        World.addBox(st.shoulder, 0.06, len, cx, 0.05, cz, shM, { rotY: yaw, solid: false, cast: false, surface: 'dirt', hit: false });
+                    }
+                }
+                /* town routes: pavement and kerb, broken where another road crosses */
+                if (c.walk > 0) {
+                    lat = side * (c.w / 2 + c.walk / 2);
+                    cx = mx + rx * lat; cz = mz + rz * lat;
+                    if (!this._inOther(cx, cz, r, 1.5) && !this._inOther(a[0] + rx * lat, a[1] + rz * lat, r, 1.5) && !this._inOther(b[0] + rx * lat, b[1] + rz * lat, r, 1.5)) {
+                        World.addBox(c.walk, 0.18, len, cx, 0, cz, walkM, { rotY: yaw, solid: false, surface: 'concrete' });
+                        var kl = side * (c.w / 2 + 0.15);
+                        World.addBox(0.3, 0.2, Math.max(0.2, len - 0.1), mx + rx * kl, 0, mz + rz * kl, kerbM, { rotY: yaw, solid: false, cast: false, hit: false });
+                    }
+                }
+            }
+            /* centre line: a 5m dash every 14m of travel, never through a junction */
+            if (st.paint) {
+                while (nextDash < dist + L) {
+                    var t = nextDash - dist, px = a[0] + ux * t, pz = a[1] + uz * t;
+                    if (!this._inOther(px, pz, r, 2)) {
+                        World.addBox(0.4, 0.01, 5, px, 0.125, pz, paint, { rotY: yaw, solid: false, cast: false, hit: false });
+                    }
+                    nextDash += 14;
+                }
+            }
+            dist += L;
+        }
+    },
+    /* how far a slab of half-width hw must run past joint b to meet the next */
+    _ext: function (a, b, c, hw) {
+        var x1 = b[0] - a[0], z1 = b[1] - a[1], x2 = c[0] - b[0], z2 = c[1] - b[1];
+        var l1 = Math.sqrt(x1 * x1 + z1 * z1) || 1, l2 = Math.sqrt(x2 * x2 + z2 * z2) || 1;
+        var cs = SV.util.clamp((x1 * x2 + z1 * z2) / (l1 * l2), -1, 1), turn = Math.acos(cs);
+        return Math.min(hw * Math.tan(Math.min(turn, 1.2) / 2) + 0.05, Math.min(l1, l2) * 0.5);
+    },
+
+    /* ------------------------------------------------------------ traffic
+       Points for the traffic graph: the ends, every junction, and a point
+       every 30m between (cars steer from node to node). */
+    graphPoints: function (r) {
+        var P = r.P, out = [P[0]], acc = 0, k, self = this;
+        var shared = function (p) {
+            var i, o, m;
+            for (i = 0; i < self.LIST.length; i++) {
+                o = self.LIST[i]; if (o === r) { continue; }
+                for (m = 0; m < o.P.length; m++) { if (Math.abs(o.P[m][0] - p[0]) < 0.01 && Math.abs(o.P[m][1] - p[1]) < 0.01) { return true; } }
+            }
+            return (r.cross || []).some(function (q) { return Math.abs(q.x - p[0]) < 0.01 && Math.abs(q.z - p[1]) < 0.01; });
+        };
+        for (k = 1; k < P.length - 1; k++) {
+            acc += Math.sqrt((P[k][0] - P[k - 1][0]) * (P[k][0] - P[k - 1][0]) + (P[k][1] - P[k - 1][1]) * (P[k][1] - P[k - 1][1]));
+            if (acc >= 30 || shared(P[k])) { out.push(P[k]); acc = 0; }
+        }
+        out.push(P[P.length - 1]);
+        return out;
     }
 };
 
@@ -16288,6 +16755,8 @@ var City = {
     /* queue a building for windows; they are placed after the whole city
        exists, so a window is never punched into a party wall */
     _winJob: function (w, h, d, x, y, z, budget, noGround) {
+        /* queued in the frame it was placed in: a shifted building's windows go with it */
+        if (World.shift) { x += World.shift.dx; z += World.shift.dz; }
         (this._winJobs = this._winJobs || []).push(
             { w: w, h: h, d: d, x: x, y: y, z: z, budget: budget || this.WIN_BUDGET,
               noGround: !!noGround });
@@ -16684,6 +17153,9 @@ var City = {
         this._seed(81959);
         for (x = -1700; x <= 560; x += STEP) {
             for (z = -560; z <= 450; z += STEP) {
+                /* each cell its own seed: land added or taken away elsewhere no
+                   longer moves every bush downtown */
+                this._seed(81959 + Math.floor(x * 7919 + z * 104729));
                 var px = x + this._rand(-4, 4), pz = z + this._rand(-4, 4);
                 if (this._rand(0, 1) > q) { continue; }
                 if (!this._onLand(px, pz)) { continue; }
@@ -16704,6 +17176,7 @@ var City = {
                     if (r < 0.34) { this._scrubTree(px, pz, scrubG); }
                     else if (r < 0.62) { this._bushes(px, pz, scrubG); }
                     else if (r < 0.9) { this._tallGrass(px, pz, grass); }
+                    else if (px < Districts.BAYOU_X) { this._tallGrass(px, pz, grass); }   /* no sheds on the new ground yet */
                     else if (r < 0.95 && this._free(10, 9, px, pz)) { this._shed(px, pz); }
                     else { this._fence(px, pz); }
                 }
@@ -16743,6 +17216,10 @@ var City = {
         for (i = 0; i < S.length; i++) {
             c = Roads.cls(S[i]);
             if (Roads._distToSeg(x, z, S[i]) < c.w / 2 + (c.walk || 0) + pad) { return true; }
+        }
+        if (typeof Routes !== 'undefined') {
+            var q = Routes.nearest(x, z);
+            if (q && q.dist < Routes.corridor(q.route) + pad) { return true; }
         }
         return false;
     },
@@ -18292,7 +18769,7 @@ var City = {
         /* exits: the island edges and the causeway mouth */
         World.exits.push([-560, 11.5], [520, 11.5], [-560, -11.5], [520, -11.5],
                          [0, 372], [-330, 372], [330, 372],
-                         [-240, -250], [240, -250], [-1560, -40], [-1560, 100], [-880, 300]);
+                         [-240, -250], [240, -250], [-1560, -1690], [-1560, -1550]);
     },
 
     /* ------------------------------------------------------------- ground -
@@ -18308,15 +18785,22 @@ var City = {
        with the districts floating in the middle of it, which reads as an
        arena rather than a barrier island. */
     ISLAND_SHAPE: [
-        [-616, 30], [-604, -76], [-556, -178], [-420, -238], [-182, -258],
-        [58, -264], [262, -246], [402, -201], [492, -131], [541, -28],
-        [548, 92], [519, 201], [452, 299], [378, 374],
-        /* the Gulf beach: 15-35m of sand in front of the promenade. The
-           old coast ran at z=401-410, so the sand box (to z=413) and the
-           seawall (x -579..409) hung out over open water at both ends -
-           sand you swam through. */
-        [330, 392], [176, 420], [-62, 424], [-262, 418], [-340, 402],
-        [-424, 381], [-544, 331], [-602, 212]
+        /* Offatts Bayou's east bank, from the head of the bayou north to the bay */
+        [-640, 150], [-616, 30], [-604, -76], [-556, -178],
+        /* the harbour shore and the east end, as they always were */
+        [-420, -238], [-182, -258], [58, -264], [262, -246], [402, -201], [492, -131], [541, -28],
+        [548, 92], [519, 201], [452, 299], [378, 374], [330, 392], [176, 420], [-62, 424], [-262, 418],
+        [-340, 402], [-424, 381],
+        /* the Gulf shore runs on west, across the foot of the bayou, to San Luis Pass */
+        [-520, 392], [-640, 412], [-790, 410], [-852, 398], [-924, 390], [-1000, 392], [-1110, 398],
+        [-1250, 394], [-1370, 400], [-1500, 404], [-1640, 412], [-1800, 414], [-1990, 432], [-2200, 430],
+        [-2420, 447], [-3000, 442], [-4000, 422], [-5000, 392], [-6000, 330], [-6600, 255], [-7020, 200],
+        /* the pass, and back east along West Bay */
+        [-7000, 140], [-6600, 60], [-6000, -40], [-5400, -120], [-4800, -180], [-4200, -260], [-3600, -330],
+        [-3000, -420], [-2420, -470], [-2080, -500], [-1880, -500], [-1540, -470], [-1250, -440], [-1010, -420],
+        [-900, -400],
+        /* the bayou's west bank, down to its head */
+        [-800, -300], [-786, -170], [-790, 70], [-770, 150], [-700, 178]
     ],
     /* The mainland used to be a 230m scrap of shore with one petrol
        station, seen across a bridge you could not drive. It is now a county:
@@ -18329,12 +18813,13 @@ var City = {
        where anyone can drive or see (the playable edge is x=-1700, the
        fog closes at 420m), so there is always more Texas beyond. */
     MAINLAND_SHAPE: [
-        [-2600, -610], [-2320, -575], [-2080, -598], [-1880, -552], [-1700, -530],
-        [-1540, -497], [-1380, -489], [-1250, -472], [-1120, -468], [-1010, -452],
-        [-900, -428], [-806, -330], [-786, -170],
-        [-790, 70], [-806, 210], [-852, 336], [-924, 362], [-1000, 381],
-        [-1110, 392], [-1250, 377], [-1370, 396], [-1500, 391], [-1640, 410],
-        [-1800, 402], [-1990, 432], [-2200, 421], [-2420, 447], [-2600, 440]
+        /* the West Bay shore, west to east: Hickory Bend, Virginia Point, Bayport */
+        [-7600, -1500], [-6000, -1360], [-4500, -1300], [-3200, -1360], [-2600, -1310], [-2200, -1229],
+        [-1990, -1218], [-1800, -1248], [-1640, -1240], [-1500, -1259], [-1370, -1254], [-1250, -1273],
+        [-1110, -1258], [-1000, -1269], [-924, -1288], [-852, -1300], [-700, -1280], [-560, -1250],
+        [-300, -1330], [200, -1440], [700, -1550], [1100, -1790], [1350, -2150], [1450, -2700],
+        /* and on north, past the edge of the map, into Texas */
+        [-7600, -2700]
     ],
     /* the causeway embankment: x0, x1, z0, z1 - land in the bay */
     CAUSEWAY: [-812, -596, -58, -22],
@@ -18685,12 +19170,14 @@ var City = {
         /* the landmarks' lots: see Landmarks.SITES */
         [-50, 36, 26, 40], [-41, -35, 30, 26], [-306, 76, 26, 32], [-197, 72, 44, 40], [-258, 44, 34, 40], [-299, 41, 40, 34],
         [102, -173, 48, 22], [105, -119, 46, 26], [163, -60, 22, 18], [165, -82, 26, 22], [368, -33, 42, 34], [309, 207, 26, 22],
-        [-303, 120, 30, 26], [283, 335, 46, 40], [144, 331, 40, 32], [-64, 137, 50, 40], [-262, -128, 40, 34], [-1008, -154, 60, 60],
-        [-1177, 138, 84, 48], [-1205, -173, 28, 22], [-1201, -141, 36, 30], [-1503, 144, 80, 60], [172, 159, 40, 30],
+        [-303, 120, 30, 26], [283, 335, 46, 40], [144, 331, 40, 32], [-64, 137, 50, 40], [-262, -128, 40, 34], [-1008, -1804, 60, 60],
+        [-1177, -1512, 84, 48], [-1205, -1823, 28, 22], [-1201, -1791, 36, 30], [-1503, -1506, 80, 60], [172, 159, 40, 30],
         [-47, 217, 24, 24], [-75, 211, 28, 24], [-20, 218, 26, 22], [41, -37, 30, 22], [-258, 80, 34, 28], [79, -41, 30, 14], [117, 134, 24, 34], [160, 204, 16, 16],
-        [-910, -78, 44, 34], [-192, 29, 46, 42],
+        [-910, -1728, 44, 34], [-192, 29, 46, 42],
         /* mainland: the drive-in lot, the refinery's stacks, the plaza */
-        [-1140, -120, 80, 110], [-1318, -275, 100, 80], [-1340, 30, 44, 44]
+        [-1140, -1770, 80, 110], [-1318, -1925, 100, 80], [-1340, -1620, 44, 44],
+        /* mid-island: Fort Crockett's batteries, barracks and parade ground */
+        [-745, 290, 160, 110]
     ],
 
     /* ----------------------------------------------------------------------
@@ -18758,7 +19245,7 @@ var City = {
             cand.push(d);
         }
         var made = 0;
-        for (x = -1600; x <= 540; x += CELL) {
+        for (x = -1600 + CELL * 22; x <= 540; x += CELL) {      /* -588: east of the bayou */
             for (z = -450; z <= 400; z += CELL) {
                 var here = Districts.at(x, z);
                 if (here && !here.water) { continue; }
@@ -19402,6 +19889,7 @@ var City = {
         for (k = 0; k < 5; k++) { World.addBox(0.7, 0.9, 0.02, 297.5 + k * 1.8, 1.2, 150, m([0xf0ece0, 0x8aa8c8, 0xe8c8c8][k % 3]), { solid: false }); }
     },
     _gable: function (x, y, z, w, d, rise, hex, rotY) {
+        if (World.shift) { x += World.shift.dx; z += World.shift.dz; }
         var alongX = w >= d, L = (alongX ? w : d) / 2, S = (alongX ? d : w) / 2, H = rise;
         function P(a, s2, yy) { return alongX ? [a, yy, s2] : [s2, yy, a]; }
         var q = [], tri = function (a, b, c) { q.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]); };
@@ -20028,6 +20516,8 @@ var City = {
             World.addBox(1.6, 0.45, 0.45, 303.5, 0, 156.6, m(0x7a5a3a), { solid: false, surface: 'wood' });
         }());
 
+        /* ---- the mainland (lifted across West Bay: see Districts.MAIN_DZ) ---- */
+        World.shift = { dx: 0, dz: Districts.MAIN_DZ };
         /* Cadiz Flats: Delmar Petroleum, first thing off the causeway */
         World.addBox(26, 7, 16, -910, 0, -78, m(Districts.ACCENTS[0]), { surface: 'concrete' });
         /* the pump canopy stands out FRONT of the station (whose front wall
@@ -20092,6 +20582,29 @@ var City = {
         }
         World.addBox(10, 0.5, 10, -1340, 3.8, 30, m(0x8a4a3a), { solid: false });
         World.addBox(5, 1.4, 5, -1340, 4.3, 30, m(0x8a4a3a), { solid: false });
+
+        World.shift = null;
+
+        /* Fort Crockett: two earth-covered batteries facing the Gulf, the parade
+           ground behind them and two long frame barracks on Fort Crockett Road */
+        (function () {
+            var cx = -745, cz = 300, k, bx;
+            World.addBox(120, 0.04, 56, cx, 0.01, cz - 12, m(0x6f8a4a), { solid: false, surface: 'grass' });
+            World.addBox(0.3, 14, 0.3, cx, 0, cz - 12, m(0xe8e4da), { surface: 'metal' });
+            World.addBox(2.4, 1.4, 0.05, cx + 1.3, 12.2, cz - 12, m(0xb01c18), { solid: false });
+            for (k = 0; k < 2; k++) {
+                bx = cx - 40 + k * 80;
+                World.addBox(46, 5, 22, bx, 0, cz + 22, m(0x7a8a56), { surface: 'grass' });
+                World.addBox(42, 6, 2, bx, 0, cz + 33.5, m(0xa8a294), { surface: 'concrete' });
+                World.addBox(8, 3.5, 6, bx - 12, 5, cz + 26, m(0xa8a294), { surface: 'concrete' });
+                World.addBox(8, 3.5, 6, bx + 12, 5, cz + 26, m(0xa8a294), { surface: 'concrete' });
+                World.addBox(3, 3.4, 0.6, bx - 6, 0, cz + 34.6, m(0x3a3a3c), { solid: false });
+                World.addBox(3, 3.4, 0.6, bx + 6, 0, cz + 34.6, m(0x3a3a3c), { solid: false });
+                World.addBox(56, 7, 12, cx - 31 + k * 62, 0, cz - 50, m(0xe8e2d2), { surface: 'wood' });
+                City._winJob(56, 7, 12, cx - 31 + k * 62, 0, cz - 50, 24);
+                City._gable(cx - 31 + k * 62, 7, cz - 50, 58, 13, 2.6, 0x4a4f56);
+            }
+        }());
 
         /* The Strand: Merchants Bank on the corner */
         World.addBox(30, 20, 26, -192, 0, 29, m(0xd8c48a),
@@ -22591,6 +23104,7 @@ var Water = {
         for (di = 0; di < D.length; di++) { if (x > D[di][0] && x < D[di][1] && z > D[di][2] && z < D[di][3]) { return false; } }
         if (x > 230 && x < 270 && z > 476 && z < 524) { return false; }
         /* the causeway embankment carries the road across the bay */
+        if (typeof Routes !== 'undefined' && Routes.onBridge(x, z)) { return false; }
         if (City.CAUSEWAY && x > City.CAUSEWAY[0] && x < City.CAUSEWAY[1] &&
                 z > City.CAUSEWAY[2] && z < City.CAUSEWAY[3]) { return false; }
         return true;
@@ -22941,7 +23455,7 @@ var Ocean = {
     ].join('\n'),
 
     _surface: function () {
-        var self = this, SZ = 7000, SEG = 220, OX = -900, OZ = 0;
+        var self = this, SZ = 13000, SEG = 260, OX = -2800, OZ = -900;
         var g = new THREE.PlaneGeometry(SZ, SZ, SEG, SEG);
         g.rotateX(-Math.PI / 2);
         var pos = g.attributes.position, n = pos.count, i;
@@ -23271,7 +23785,7 @@ var Properties = {
           wall: 0xd8c8a8, roof: 0x3f3a34, w: 11, d: 10, h: 3.8 },
         { id: 'seawall_cottage', name: 'COTTAGE BEHIND THE SEAWALL', where: 'THE SEAWALL', at: [-268, 352], price: 4500,
           wall: 0x7ab8b0, roof: 0x2a2d31, w: 10, d: 9, h: 4.2 },
-        { id: 'oleander_house', name: 'WHITE HOUSE ON OLEANDER', where: 'OLEANDER', at: [-1402, 236], price: 6500,
+        { id: 'oleander_house', name: 'WHITE HOUSE ON OLEANDER', where: 'OLEANDER', at: [-1402, -1414], price: 6500,
           wall: 0xe8e0cc, roof: 0x4a3428, w: 14, d: 11, h: 6.4 },
         { id: 'silk_carriage', name: 'THE AMBROSE CARRIAGE HOUSE', where: 'SILK ROW', at: [-206, 206], price: 12000,
           wall: 0x5c9468, roof: 0x3f3a34, w: 16, d: 12, h: 7.0 }
@@ -26706,9 +27220,9 @@ var Landmarks = {
         brewery: [368, -33, 42, 34], khac: [309, 207, 26, 22],
         magnolia: [-303, 120, 30, 26], motor: [283, 335, 46, 40],
         diner: [144, 331, 40, 32], cemetery: [-64, 137, 50, 40],
-        fort: [-262, -128, 40, 34], ballpark: [-1008, -154, 60, 60],
-        greyhound: [-1177, 138, 84, 48], channel6: [-1205, -173, 28, 22],
-        palms: [-1201, -141, 36, 30], fair: [-1503, 144, 80, 60],
+        fort: [-262, -128, 40, 34], ballpark: [-1008, -1804, 60, 60],
+        greyhound: [-1177, -1512, 84, 48], channel6: [-1205, -1823, 28, 22],
+        palms: [-1201, -1791, 36, 30], fair: [-1503, -1506, 80, 60],
         hospital: [172, 159, 40, 30],
         castle: [-47, 217, 24, 24], villa: [-75, 211, 28, 24], mansion: [-20, 218, 26, 22],
         library: [41, -37, 30, 22], tremont: [-258, 80, 34, 28], ironrow: [79, -41, 30, 14],
@@ -27943,14 +28457,17 @@ var Landmarks = {
         /* the slip at the quay edge, and across the bay the mainland slip */
         this.deco(8, 0.3, 8, FX, 0, -251, 0x8a6a4a);
         this.box(0.3, 1.1, 8, FX - 4, 0, -251, 0xe8e2d4, { surface: 'wood' }); this.box(0.3, 1.1, 8, FX + 4, 0, -251, 0xe8e2d4, { surface: 'wood' });
-        var MX = -880, MZ = -404;
-        this.deck(MX - 4, MX + 4, MZ - 14, MZ + 1, 0x8a6a4a);
-        this.box(3, 3, 3, MX - 8, 0, MZ + 6, 0xe8dcc0, { surface: 'wood' });
-        this.sign(['BAYARD FERRY', 'TO PORT HALCYON'], { x: MX - 8, y: 3.8, z: MZ + 4.45, yaw: Math.PI, w: 4.4, h: 1.2, fg: '#ffe08a', fg2: '#8fe8ff' });
-        for (k = 0; k < 3; k++) { this.box(1.9, 1.5, 4.6, MX + (k % 2) * 3 - 1.5, 0, MZ + 10 + Math.floor(k / 2) * 6, [0xd8c888, 0x5a6a7a, 0x8a3a2a][k], { surface: 'metal' }); }
-        this.FERRY_A = [FX, -263]; this.FERRY_B = [MX, MZ - 14];
-        /* out from the quay, west down the channel clear of the pier heads, across the bay */
-        this.anims.push({ kind: 'ferry', pts: [[FX, -263], [FX, -322], [-380, -322], [MX, MZ - 14]], t: 0 });
+        /* the far slip, on the Virginia Point shore across West Bay: the deck runs
+           out south over the water; the booth and the queue stand behind it */
+        var MX = -560, MZ = -1250;
+        this.deck(MX - 4, MX + 4, MZ - 1, MZ + 14, 0x8a6a4a);
+        this.box(3, 3, 3, MX - 8, 0, MZ - 6, 0xe8dcc0, { surface: 'wood' });
+        this.sign(['BAYARD FERRY', 'TO PORT HALCYON'], { x: MX - 8, y: 3.8, z: MZ - 4.45, yaw: 0, w: 4.4, h: 1.2, fg: '#ffe08a', fg2: '#8fe8ff' });
+        for (k = 0; k < 3; k++) { this.box(1.9, 1.5, 4.6, MX + (k % 2) * 3 - 1.5, 0, MZ - 10 - Math.floor(k / 2) * 6, [0xd8c888, 0x5a6a7a, 0x8a3a2a][k], { surface: 'metal' }); }
+        this.FERRY_A = [FX, -263]; this.FERRY_B = [MX, MZ + 14];
+        /* out from the quay, west down the channel clear of the pier heads, round
+           the mouth of the bayou and north across West Bay */
+        this.anims.push({ kind: 'ferry', pts: [[FX, -263], [FX, -322], [-380, -322], [-520, -360], [MX, MZ + 14]], t: 0 });
         this.poi(FX, FZ, 'dock', 'BAYARD FERRY');
         this.poi(MX, MZ, 'dock', 'BAYARD FERRY · MAINLAND');
     },
@@ -28211,7 +28728,7 @@ var Landmarks = {
         this.poi(S[0], S[1], 'star', 'COUNTY FAIRGROUNDS');
 
         /* the Gulf Star Drive-In fills after sunset: parked cars facing the screen */
-        var DI = [-1140, -120], cars = new THREE.Group();
+        var DI = [-1140, -1770], cars = new THREE.Group();
         var cm = [0x6a8a9a, 0xd8d0c0, 0x7a2a2a, 0x3a5a3a, 0xe8c888, 0x2a2a3a], cg = new THREE.BoxGeometry(1.9, 1.3, 4.6);
         for (k = 0; k < 30; k++) {
             var cx = DI[0] - 30 + (k % 10) * 6.5, cz = DI[1] - 10 + Math.floor(k / 10) * 12;
@@ -35635,7 +36152,7 @@ var Traffic = {
        and how many cars are on the road follows the clock - a rush hour
        morning and evening, quiet small hours. */
     LANE: 4.0,                          /* arterial; others below        */
-    LANE_BY: { arterial: 4.0, street: 2.75, lane: 1.8 },
+    LANE_BY: { arterial: 4.0, street: 2.75, lane: 1.8, highway: 3.5, rural: 2.3, dirt: 1.6 },
     STREAM: 190,                        /* further than this, recycle it - closer in, so the
                                            streets round the player stay busy */
     ctl: [],
@@ -35655,7 +36172,7 @@ var Traffic = {
         function key(x, z) { return Math.round(x * 2) + '|' + Math.round(z * 2); }
         function node(x, z) {
             var k = key(x, z);
-            if (!nodes[k]) { nodes[k] = { x: x, z: z, out: [], id: self.nodes.length }; self.nodes.push(nodes[k]); }
+            if (!nodes[k]) { nodes[k] = { x: x, z: z, out: [], nb: [], id: self.nodes.length }; self.nodes.push(nodes[k]); }
             return nodes[k];
         }
         /* service lanes are too narrow for two-way traffic; nobody routes
@@ -35681,6 +36198,9 @@ var Traffic = {
                 if (c < lo - 8 || c > hi + 8 || fixed < blo - 8 || fixed > bhi + 8) { continue; }
                 cross.push(c);
             }
+            /* a route crossing or joining this road is a junction on it */
+            var RCg = (typeof Routes !== 'undefined' && Routes.gridCross[Roads.SEGMENTS.indexOf(a)]) || [];
+            RCg.forEach(function (q) { if (q.along > lo - 1 && q.along < hi + 1) { cross.push(q.along); } });
             /* an end within 8m of a crossing is that crossing */
             cross.forEach(function (c) {
                 if (Math.abs(c - lo) < 8) { at[0] = c; }
@@ -35695,9 +36215,29 @@ var Traffic = {
                 var len = Math.sqrt((n1.x - n0.x) * (n1.x - n0.x) + (n1.z - n0.z) * (n1.z - n0.z));
                 var e = { a: n0, b: n1, len: len, lane: self.LANE_BY[a[4]] || 2.75, name: a[5] };
                 self.edges.push(e);
-                n0.out.push({ to: n1, e: e });
-                n1.out.push({ to: n0, e: e });
+                /* a one-way street ({ oneway: true } as its 7th entry) runs from its first point to its second */
+                var ow = a[6] && a[6].oneway ? ((vert ? a[3] - a[1] : a[2] - a[0]) > 0 ? 1 : -1) : 0;
+                if (ow >= 0) { n0.out.push({ to: n1, e: e }); }
+                if (ow <= 0) { n1.out.push({ to: n0, e: e }); }
+                n0.nb.push(n1); n1.nb.push(n0);
             }
+        }
+        /* the routes: a node at each end, junction and every 30m */
+        if (typeof Routes !== 'undefined') {
+            Routes.LIST.forEach(function (r) {
+                if (!lanes && r.cls === 'lane') { return; }
+                var G = Routes.graphPoints(r), q;
+                for (q = 0; q < G.length - 1; q++) {
+                    var m0 = node(G[q][0], G[q][1]), m1 = node(G[q + 1][0], G[q + 1][1]);
+                    if (m0 === m1) { continue; }
+                    var L2 = Math.sqrt((m1.x - m0.x) * (m1.x - m0.x) + (m1.z - m0.z) * (m1.z - m0.z));
+                    var re = { a: m0, b: m1, len: L2, lane: self.LANE_BY[r.cls] || 2.75, name: r.name };
+                    self.edges.push(re);
+                    if (r.oneway !== -1) { m0.out.push({ to: m1, e: re }); }
+                    if (r.oneway !== 1) { m1.out.push({ to: m0, e: re }); }
+                    m0.nb.push(m1); m1.nb.push(m0);
+                }
+            });
         }
         /* Prune the dead ends, repeatedly, so a stub leading to a stub goes
            too. A car sent down a road that just stops had to turn round in
@@ -35708,17 +36248,20 @@ var Traffic = {
             changed = false;
             for (k = 0; k < self.nodes.length; k++) {
                 var n = self.nodes[k];
-                if (n.out.length === 1) {
-                    var o = n.out[0].to;
+                /* a dead end by its neighbours, not its exits: a one-way
+                   street's nodes have one exit and are not dead ends */
+                if (n.nb.length === 1) {
+                    var o = n.nb[0];
                     o.out = o.out.filter(function (q) { return q.to !== n; });
-                    n.out = [];
+                    o.nb = o.nb.filter(function (q) { return q !== n; });
+                    n.out = []; n.nb = [];
                     changed = true;
                 }
             }
         }
-        self.nodes = self.nodes.filter(function (q) { return q.out.length > 0; });
+        self.nodes = self.nodes.filter(function (q) { return q.nb.length > 0; });
         self.edges = self.edges.filter(function (e) {
-            return e.a.out.some(function (q) { return q.e === e; });
+            return e.a.out.some(function (q) { return q.e === e; }) || e.b.out.some(function (q) { return q.e === e; });
         });
         self.nodes.forEach(function (q, qi) { q.id = qi; });
         return { nodes: self.nodes, edges: self.edges };
@@ -39283,10 +39826,10 @@ var UI = {
         [250, 520, 'fish', 'FISHING · PIER HEAD'],
         [288, -60, 'home', 'BEVILACQUA HOUSE'],
         [250, 219, 'bar', 'THE BLUE ROOSTER'],
-        [-910, -78, 'fuel', 'DELMAR PETROLEUM'],
-        [-1140, -130, 'star', 'STARLITE DRIVE-IN'],
-        [-1300, -265, 'ind', 'PELICAN REFINERY'],
-        [-1340, 30, 'bar', 'PLAZA SAN JACINTO'],
+        [-910, -1728, 'fuel', 'DELMAR PETROLEUM'],
+        [-1140, -1780, 'star', 'STARLITE DRIVE-IN'],
+        [-1300, -1915, 'ind', 'PELICAN REFINERY'],
+        [-1340, -1620, 'bar', 'PLAZA SAN JACINTO'],
         [-470, 250, 'star', 'BURNED LIGHTHOUSE'],
         [-372, -108, 'ind', 'SUGAR REFINERY'],
         [180, -640, 'dock', 'PIER 9'],
@@ -39375,6 +39918,16 @@ var UI = {
                     o.push('<rect x="' + (+x0).toFixed(1) + '" y="' +
                         (+z0).toFixed(1) + '" width="' + wd.toFixed(1) +
                         '" height="' + ht.toFixed(1) + '" fill="' + fill + '"/>');
+                }
+                if (typeof Routes !== 'undefined') {
+                    for (i = 0; i < Routes.LIST.length; i++) {
+                        var rr = Routes.LIST[i], rc = Routes.cls(rr), rb = rr.bb;
+                        if (rb[2] < px - range || rb[0] > px + range || rb[3] < pz - range || rb[1] > pz + range) { continue; }
+                        var rpts = rr.P.map(function (q) { return (+X(q[0])).toFixed(1) + ',' + (+Z(q[1])).toFixed(1); }).join(' ');
+                        o.push('<polyline points="' + rpts + '" fill="none" stroke-linejoin="round" stroke-linecap="round" stroke="' +
+                               (pass ? (rr.cls === 'dirt' ? '#a8916a' : (rr.cls === 'arterial' || rr.cls === 'highway') ? '#e0dac6' : '#b9b3a0') : '#6f6c5c') +
+                               '" stroke-width="' + ((pass ? rc.w : rc.w + rc.walk * 2 + Routes.style(rr).shoulder * 2) * sc).toFixed(1) + '"/>');
+                    }
                 }
             }
         }
@@ -39481,6 +40034,8 @@ var UI = {
         if (this.el.mmStreet) {
             var road = (typeof Roads !== 'undefined') ? Roads.nearest(px, pz)
                                                       : null;
+            var rt = (typeof Routes !== 'undefined') ? Routes.nearest(px, pz) : null;
+            if (rt && (!road || rt.dist < road.dist)) { road = rt; }
             this.el.mmStreet.textContent = (road && road.dist < 22)
                 ? road.name : (here ? here.name : '');
         }
@@ -39867,7 +40422,7 @@ var UI = {
        that picture sits in an SVG in world coordinates, so panning and
        zooming only moves a view box. Names, pins, the job and Vinny are
        vector on top, resized to the zoom so they stay readable. */
-    MAP_EXT: { minX: -2600, maxX: 800, minZ: -640, maxZ: 700 },
+    MAP_EXT: { minX: -7400, maxX: 1800, minZ: -2700, maxZ: 800 },
     _mapBase: function () {
         if (this._mapImg !== undefined) { return this._mapImg; }
         var E = this.MAP_EXT, W = SV.util.isMobile() ? 2560 : 4096;
@@ -39923,6 +40478,24 @@ var UI = {
                 c.lineCap = 'butt';
                 c.beginPath(); c.moveTo(X(sg[0]), Z(sg[1])); c.lineTo(X(sg[2]), Z(sg[3])); c.stroke();
             }
+        }
+        /* the routes: the same three passes, along their curves */
+        if (typeof Routes !== 'undefined') {
+            var RL = Routes.LIST, rq, rp2;
+            for (pass = 0; pass < 3; pass++) {
+                for (k = 0; k < RL.length; k++) {
+                    var rr = RL[k], rc = Routes.cls(rr), dirt = rr.cls === 'dirt', big = rr.cls === 'arterial' || rr.cls === 'highway';
+                    if (pass === 2 && !big) { continue; }
+                    var rw = pass === 0 ? rc.w + rc.walk * 2 + Routes.style(rr).shoulder * 2 + 1 : pass === 1 ? rc.w : 0.5;
+                    c.strokeStyle = pass === 0 ? (dirt ? '#5a5040' : '#6b665a') : pass === 1 ? (dirt ? '#8a7656' : big ? '#a49b82' : '#8b8574') : 'rgba(210,170,80,.55)';
+                    c.lineWidth = Math.max(pass === 2 ? 1 : 1.2, rw * sc);
+                    c.lineCap = 'round'; c.lineJoin = 'round';
+                    c.beginPath();
+                    for (rq = 0; rq < rr.P.length; rq++) { rp2 = rr.P[rq]; if (rq) { c.lineTo(X(rp2[0]), Z(rp2[1])); } else { c.moveTo(X(rp2[0]), Z(rp2[1])); } }
+                    c.stroke();
+                }
+            }
+            c.lineCap = 'butt';
         }
         /* Scholes Field: the two runways and the apron */
         if (typeof Airport !== 'undefined') {
@@ -40004,6 +40577,25 @@ var UI = {
             var mx = (sg[0] + sg[2]) / 2, mz = (sg[1] + sg[3]) / 2;
             o.push('<text class="mst" data-w="1" x="' + mx + '" y="' + mz + '" text-anchor="middle" dominant-baseline="central"' +
                    (v ? ' transform="rotate(-90 ' + mx + ' ' + mz + ')"' : '') + '>' + name + '</text>');
+        }
+        /* route names, along the longest stretch, kept upright */
+        if (typeof Routes !== 'undefined') {
+            Routes.LIST.forEach(function (r) {
+                if (!r.name || seen[r.name]) { return; }
+                var P = r.P, tot = 0, q, acc = 0, at = 0;
+                for (q = 1; q < P.length; q++) { tot += Math.sqrt((P[q][0] - P[q - 1][0]) * (P[q][0] - P[q - 1][0]) + (P[q][1] - P[q - 1][1]) * (P[q][1] - P[q - 1][1])); }
+                if (tot < 140) { return; }
+                seen[r.name] = 1;
+                for (q = 1; q < P.length; q++) {
+                    acc += Math.sqrt((P[q][0] - P[q - 1][0]) * (P[q][0] - P[q - 1][0]) + (P[q][1] - P[q - 1][1]) * (P[q][1] - P[q - 1][1]));
+                    if (acc >= tot / 2) { at = q; break; }
+                }
+                var a = P[at - 1], b = P[at], mx = (a[0] + b[0]) / 2, mz = (a[1] + b[1]) / 2;
+                var deg = Math.atan2(b[1] - a[1], b[0] - a[0]) * 180 / Math.PI;
+                if (deg > 90) { deg -= 180; } else if (deg < -90) { deg += 180; }
+                o.push('<text class="mst" data-w="1" x="' + mx.toFixed(1) + '" y="' + mz.toFixed(1) + '" text-anchor="middle" dominant-baseline="central" transform="rotate(' +
+                       deg.toFixed(1) + ' ' + mx.toFixed(1) + ' ' + mz.toFixed(1) + ')">' + r.name + '</text>');
+            });
         }
         o.push('</g><g id="mapDistricts">');
         for (i = 0; i < Districts.list.length; i++) {
@@ -46107,29 +46699,50 @@ var SFX = {
     },
     _wave: function () {
         if (this._pw) { return this._pw; }
-        /* a pulse train with a falling spectrum: each firing is a thump */
-        var n = 24, re = [], im = [], k;
-        for (k = 0; k < n; k++) { re.push(0); im.push(0); }
-        for (k = 1; k < n; k++) { im[k] = (k % 2 ? 1 : 0.6) / Math.pow(k, 0.9); }
+        /* an exhaust pulse, not a buzzer: the firing note and its first few
+           harmonics, falling away fast. The old wave carried 24 harmonics at
+           nearly full strength, and through an open filter that was a mosquito. */
+        var n = 14, re = [], im = [], k, A = [0, 1, 0.72, 0.42, 0.28, 0.15, 0.09];
+        for (k = 0; k < n; k++) { re.push(0); im.push(k < A.length ? A[k] : 0.4 / Math.pow(k, 1.8)); }
         this._pw = this.ctx.createPeriodicWave(re, im);
         return this._pw;
     },
     /* one engine voice (the player's, or a car going by) */
     _engineVoice: function (dst) {
         var c = this.ctx, V = {};
+        /* two firing voices a hair apart: cylinders never fire quite evenly,
+           and the beat between them is the engine's roughness */
         V.fire = c.createOscillator(); V.fire.setPeriodicWave(this._wave()); V.fire.frequency.value = 40;
-        V.sub = c.createOscillator(); V.sub.type = 'triangle'; V.sub.frequency.value = 20;
+        V.fire2 = c.createOscillator(); V.fire2.setPeriodicWave(this._wave()); V.fire2.frequency.value = 40.3;
+        V.fire2G = c.createGain(); V.fire2G.gain.value = 0.55;
+        /* weight under every engine, and the half-order lope of a cross-plane V8 */
+        V.sub = c.createOscillator(); V.sub.type = 'sine'; V.sub.frequency.value = 20;
         V.subG = c.createGain(); V.subG.gain.value = 0;
-        V.res = this._filt('peaking', 180, 2.2); V.res.gain.value = 9;
-        V.lp = this._filt('lowpass', 600, 0.8);
-        V.intake = this._src(); V.intakeF = this._filt('bandpass', 900, 0.8);
+        /* cycle-to-cycle wander: slow noise on the firing pitch */
+        V.jit = this._src(true); V.jitF = this._filt('lowpass', 9, 0.7);
+        V.jitG = c.createGain(); V.jitG.gain.value = 0;
+        V.jit.connect(V.jitF); V.jitF.connect(V.jitG); V.jitG.connect(V.fire.frequency); V.jitG.connect(V.fire2.frequency);
+        /* exhaust rasp: noise chopped at the firing rate, a puff per cylinder */
+        V.rasp = this._src(); V.raspF = this._filt('bandpass', 400, 1.1);
+        V.raspVca = c.createGain(); V.raspVca.gain.value = 0.5;
+        V.pulse = c.createOscillator(); V.pulse.setPeriodicWave(this._wave()); V.pulse.frequency.value = 40;
+        V.pulseG = c.createGain(); V.pulseG.gain.value = 0.5;
+        V.pulse.connect(V.pulseG); V.pulseG.connect(V.raspVca.gain);
+        V.raspG = c.createGain(); V.raspG.gain.value = 0;
+        V.rasp.connect(V.raspF); V.raspF.connect(V.raspVca); V.raspVca.connect(V.raspG);
+        /* the pipe and the muffler: a low resonance, then two soft roll-offs */
+        V.res = this._filt('peaking', 120, 1.1); V.res.gain.value = 6;
+        V.lp = this._filt('lowpass', 500, 0.6);
+        V.lp2 = this._filt('lowpass', 900, 0.5);
+        V.intake = this._src(); V.intakeF = this._filt('bandpass', 700, 0.7);
         V.intakeG = c.createGain(); V.intakeG.gain.value = 0;
         V.out = c.createGain(); V.out.gain.value = 0;
-        V.fire.connect(V.res); V.sub.connect(V.subG); V.subG.connect(V.res);
-        V.res.connect(V.lp); V.lp.connect(V.out);
+        V.fire.connect(V.res); V.fire2.connect(V.fire2G); V.fire2G.connect(V.res);
+        V.sub.connect(V.subG); V.subG.connect(V.res); V.raspG.connect(V.res);
+        V.res.connect(V.lp); V.lp.connect(V.lp2); V.lp2.connect(V.out);
         V.intake.connect(V.intakeF); V.intakeF.connect(V.intakeG); V.intakeG.connect(V.out);
         V.out.connect(dst);
-        V.fire.start(); V.sub.start(); V.intake.start();
+        V.fire.start(); V.fire2.start(); V.sub.start(); V.intake.start(); V.jit.start(); V.rasp.start(); V.pulse.start();
         V.gear = 0; V.rpm = 600;
         return V;
     },
@@ -46137,22 +46750,34 @@ var SFX = {
     _driveVoice: function (V, E, sp, thr, top, t, dopp, dead, scale) {
         /* road speed to rpm through the gears, shifting up and down */
         var wheelRpm = sp / top;                      /* 0..1 of top speed */
-        var r = E.idle + wheelRpm * E.red * E.ratios[V.gear] * 0.95;
-        if (r > E.red * 0.92 && V.gear < 2) { V.gear++; V.shiftT = 0.18; }
-        else if (V.gear > 0 && E.idle + wheelRpm * E.red * E.ratios[V.gear - 1] * 0.95 < E.red * 0.55) { V.gear--; }
-        r = Math.max(E.idle + (thr > 0.1 ? 120 : 0), E.idle + wheelRpm * E.red * E.ratios[V.gear] * 0.95);
+        /* the game's top speed is a cruising car's, not a flat-out one: top gear
+           reaches it at three-quarters of the redline, not at the redline */
+        var GEAR = 0.75;
+        var r = E.idle + wheelRpm * E.red * E.ratios[V.gear] * GEAR;
+        /* a 1959 automatic: up early when you are easy on it, late only flat out */
+        var up = E.red * (0.5 + 0.42 * thr);
+        if (r > up && V.gear < 2) { V.gear++; V.shiftT = 0.18; }
+        else if (V.gear > 0 && E.idle + wheelRpm * E.red * E.ratios[V.gear - 1] * GEAR < up * 0.62) { V.gear--; }
+        r = Math.max(E.idle + (thr > 0.1 ? 120 : 0), E.idle + wheelRpm * E.red * E.ratios[V.gear] * GEAR);
         if (V.shiftT > 0) { V.shiftT -= 1 / 30; r *= 0.82; thr *= 0.2; }
         V.rpm += (r - V.rpm) * 0.35;
         var f = V.rpm / 60 * E.cyl / 2 * (dopp || 1);
         V.fire.frequency.setTargetAtTime(f, t, 0.03);
+        V.fire2.frequency.setTargetAtTime(f * 1.007, t, 0.03);
+        V.pulse.frequency.setTargetAtTime(f, t, 0.03);
         V.sub.frequency.setTargetAtTime(f / 2, t, 0.03);
-        V.subG.gain.setTargetAtTime(E.burble * (1.2 - thr), t, 0.1);
-        V.res.frequency.setTargetAtTime(E.res * (1 + V.rpm / 4000), t, 0.05);
-        V.lp.frequency.setTargetAtTime(E.tone + thr * 1400 + V.rpm * 0.25, t, 0.05);
-        V.intakeF.frequency.setTargetAtTime(500 + V.rpm * 0.35, t, 0.05);
+        /* lumpy at idle, steadier pulling */
+        V.jitG.gain.setTargetAtTime(f * (0.05 - thr * 0.03), t, 0.1);
+        V.subG.gain.setTargetAtTime(0.35 + E.burble * (1.3 - thr), t, 0.1);
+        V.res.frequency.setTargetAtTime(E.res * (0.8 + V.rpm / 6000), t, 0.05);
+        V.lp.frequency.setTargetAtTime(E.tone * 0.55 + thr * 650 + V.rpm * 0.1, t, 0.05);
+        V.lp2.frequency.setTargetAtTime(E.tone * 1.1 + thr * 900, t, 0.08);
+        V.raspF.frequency.setTargetAtTime(Math.min(1600, f * 2.4 + 120), t, 0.05);
         var sc = scale === undefined ? 1 : scale;
-        V.intakeG.gain.setTargetAtTime(dead ? 0 : (0.05 + thr * 0.2) * sc, t, 0.08);
-        V.out.gain.setTargetAtTime(dead ? 0 : (0.06 + thr * 0.07 + V.rpm / 45000) * sc, t, 0.06);
+        V.raspG.gain.setTargetAtTime(dead ? 0 : 0.18 + thr * 0.55, t, 0.08);
+        V.intakeF.frequency.setTargetAtTime(380 + V.rpm * 0.18, t, 0.05);
+        V.intakeG.gain.setTargetAtTime(dead ? 0 : (0.02 + thr * 0.09) * sc, t, 0.08);
+        V.out.gain.setTargetAtTime(dead ? 0 : (0.056 + thr * 0.06 + V.rpm / 66000) * sc, t, 0.06);
     },
     _startEngine: function () {
         var c = this.ctx;
@@ -46450,7 +47075,7 @@ var SFX = {
     /* a freight blowing for the crossing at the Yards, or out on the mainland */
     trainHorn: function () {
         if (!this.ctx || !this.enabled) { return; }
-        var P = Player.pos, src = P.x < -700 ? { x: -1300, y: 6, z: -380 } : { x: -380, y: 6, z: -150 };
+        var P = Player.pos, src = P.z < -1000 ? { x: -1300, y: 6, z: -2030 } : { x: -380, y: 6, z: -150 };
         var t = this._now(), dst = this._out(src, { wet: 1.0, ref: 50, roll: 0.55, range: 1600 });
         if (!dst) { return; }
         /* long, long, short, long */
