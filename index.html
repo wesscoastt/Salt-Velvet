@@ -17707,6 +17707,10 @@ var City = {
     _stone: function (x, z, k) {
         if (this._noBuild(x, z)) { return; }          /* the quay has a bulkhead, not a rock line */
         var w = this._rand(1.6, 3.2) * k, d = this._rand(1.4, 2.8) * k, h = this._rand(1.0, 1.8) * k;
+        if (Math.abs(x - (-850)) < 7 && ((z < -290 && z > -400) || (z < -1240 && z > -1345))) {
+            this._rand(0, 5); this._rand(0, 8); this._rand(0, 1); this._rand(0, 1); this._rand(0, 1);
+            return;
+        }
         /* set down into the shelf where it has run into the water */
         var y = 0;
         if (typeof Water !== 'undefined' && Water.isWater(x, z)) {
@@ -26378,9 +26382,12 @@ SV.registerModule('casino', Casino);
 var Railway = {
     /* the line, island end first: [x, z] */
     PATH: [[-248, -220.05], [-340, -220.05], [-356, -222.5], [-372, -229], [-386, -240], [-398, -250], [-420, -252],
-           [-790, -252], [-872, -252]],
+           [-790, -252],
+           /* off the quay, round to the north, and up the east side of the causeway */
+           [-801.7, -253.2], [-813.0, -256.6], [-823.3, -262.1], [-832.4, -269.6], [-839.9, -278.7], [-845.4, -289.0], [-848.8, -300.3], [-850.0, -312.0],
+           [-850, -700], [-850, -1420]],
     DECK_Y: 0.55,
-    VMAX: 21, ACC: 1.1, DWELL: 28, FARE: 3,
+    VMAX: 27, ACC: 1.1, DWELL: 28, FARE: 3,
     STATION_A: [-285, -165],
     train: null,
 
@@ -26432,8 +26439,11 @@ var Railway = {
         }
         /* walkable: the trestle is a deck over the bay */
         Water.DECKS.push([-800, -392, -254.2, -249.8], [-400, -350, -254, -218]);
+        /* the West Bay trestle, beside the causeway */
+        Water.DECKS.push([-852.2, -847.8, -1310, -330]);
         /* bumper stops */
-        World.addBox(3.2, 1.2, 0.6, -872.6, 0.1, -252, m(0x8a2a22), { rotY: Math.PI / 2 });
+        World.addBox(3.2, 1.2, 0.6, -850, 0.1, -1420.6, m(0x8a2a22));
+        this._swingSpan(m);
         World.addBox(3.2, 1.2, 0.6, -247, 0.1, -220.05, m(0x8a2a22), { rotY: Math.PI / 2 });
         this._unionStation(m);
         this._platforms(m);
@@ -26494,13 +26504,59 @@ var Railway = {
         this._sign(-290, 3.3, -218.3, 0, 'PORT HALCYON', '#1e2a44', '#f4ecd4', 5, 0.9);
     },
     /* the mainland depot: a brick station house and a low platform */
+    /* the mainland depot at Virginia Point: on the shore east of the causeway landing, the
+       platform on the east side of the track, the brick station house behind it */
     _depot: function (m) {
-        World.addBox(64, 0.5, 4.2, -832, 0.1, -255.2, m(0xa8a296), { surface: 'concrete' });
-        World.addBox(18, 6, 9, -832, 0, -263.5, m(0x8f5f47), { surface: 'brick' });
-        City._gable(-832, 6, -263.5, 19.4, 10.4, 2.4, 0x3f3a34);
-        World.addBox(22, 0.25, 5, -832, 3.6, -256.4, m(0x3e4448), { solid: false });
-        this._sign(-832, 5.2, -258.95, Math.PI, 'VIRGINIA POINT', '#1e2a44', '#f4ecd4', 7, 1.2);
-        (Water.DECKS).push([-866, -796, -258, -250]);
+        var X = -850, Z = -1380, k;
+        World.addBox(4.2, 0.5, 80, X + 3.2, 0.1, Z, m(0xa8a296), { surface: 'concrete' });
+        World.addBox(0.3, 0.04, 80, X + 1.25, 0.6, Z, m(0xd8c060), { solid: false, cast: false });
+        World.addBox(9, 6, 20, X + 10.3, 0, Z, m(0x8f5f47), { surface: 'brick' });
+        City._gable(X + 10.3, 6, Z, 10.4, 21.4, 2.4, 0x3f3a34);
+        City._winJob(9, 6, 20, X + 10.3, 0, Z);
+        /* the doors: onto the platform, and out to the taxi apron */
+        World.addBox(0.12, 2.6, 1.8, X + 5.76, 0.6, Z - 3, m(0x4a3424), { solid: false, cast: false });
+        World.addBox(0.12, 2.6, 1.8, X + 14.84, 0, Z + 2, m(0x4a3424), { solid: false, cast: false });
+        World.addBox(1.6, 0.2, 3.2, X + 15.6, 2.8, Z + 2, m(0x3e4448), { solid: false });
+        /* the canopy over the platform, on its posts */
+        World.addBox(5, 0.25, 30, X + 3.2, 3.6, Z, m(0x3e4448), { solid: false });
+        for (k = 0; k < 4; k++) { World.addBox(0.25, 3.0, 0.25, X + 4.6, 0.6, Z - 12 + k * 8, m(0x5a6068), { surface: 'metal' }); }
+        this._sign(X + 5.74, 4.6, Z, Math.PI / 2, 'VIRGINIA POINT', '#1e2a44', '#f4ecd4', 7, 1.2);
+        this._sign(X + 0.72, 3.0, Z + 8, Math.PI / 2, 'SANTA FE', '#d8302a', '#f4ecd4', 3, 0.6);
+        /* a gravel apron for the taxis, and the baggage cart */
+        World.addBox(16, 0.03, 30, X + 23, 0.02, Z, m(0x8a8274), { solid: false, cast: false, surface: 'gravel' });
+        World.addBox(1.4, 0.8, 2.6, X + 3.6, 0.6, Z + 16, m(0x5a4a3a), { surface: 'wood' });
+        (Water.DECKS).push([X + 1.1, X + 5.3, Z - 40, Z + 40]);
+        if (typeof Landmarks !== 'undefined' && Landmarks.poi) { Landmarks.poi(X + 10, Z, 'gov', 'VIRGINIA POINT DEPOT'); }
+    },
+    /* mid-bay, over the channel: a steel through-truss swing span on its pivot pier */
+    _swingSpan: function (m) {
+        var X = -850, Z0 = -820, Z1 = -780, y = this.DECK_Y, steel = m(0x56606a), conc = m(0x8e8a80), z, sd;
+        Landmarks.cyl ? Landmarks.cyl(4.2, 4.0, X, -3.6, (Z0 + Z1) / 2, 0x8e8a80, 18, 'concrete', false)
+                      : World.addBox(8, 4, 8, X, -3.6, (Z0 + Z1) / 2, conc, { solid: false });
+        World.addBox(3.4, 0.5, 4, X, y - 0.5, (Z0 + Z1) / 2, steel, { solid: false, cast: false });
+        for (sd = -1; sd <= 1; sd += 2) {
+            var sx = X + sd * 2.6;
+            /* bottom and top chords */
+            World.addBox(0.4, 0.6, Z1 - Z0, sx, y - 0.2, (Z0 + Z1) / 2, steel, { solid: false });
+            World.addBox(0.45, 0.5, Z1 - Z0 - 8, sx, y + 6.1, (Z0 + Z1) / 2, steel, { solid: false });
+            /* verticals */
+            for (z = Z0 + 4; z <= Z1 - 4 + 0.01; z += 8) { World.addBox(0.32, 6.3, 0.32, sx, y, z, steel, { solid: false, surface: 'metal' }); }
+            /* the end posts leaning in, and a diagonal in every panel (World boxes only
+               turn about Y, so the leaning members are static meshes tipped about X) */
+            var lean = function (za, zb, w) {
+                var dz = zb - za, L = Math.sqrt(dz * dz + 6.3 * 6.3);
+                var g = new THREE.BoxGeometry(w, L, w);
+                City._staticMesh(g, steel, sx, y + 3.15 - 0.15, (za + zb) / 2, 1, 1, 1, Math.atan2(dz, 6.3), 0, 0, 'metal', true);
+            };
+            lean(Z0, Z0 + 4, 0.42); lean(Z1, Z1 - 4, 0.42);
+            for (z = Z0 + 4; z < Z1 - 4 - 0.01; z += 8) { if (z < (Z0 + Z1) / 2) { lean(z + 8, z, 0.24); } else { lean(z, z + 8, 0.24); } }
+        }
+        /* portal and top bracing across */
+        for (z = Z0 + 4; z <= Z1 - 4 + 0.01; z += 8) { World.addBox(5.6, 0.3, 0.3, X, y + 6.2, z, steel, { solid: false }); }
+        /* the operator's hut on top, and the warning lamps */
+        World.addBox(2.2, 1.8, 2.6, X, y + 6.45, (Z0 + Z1) / 2, m(0xd8d0bc), { solid: false, surface: 'wood' });
+        World.addBox(0.35, 0.35, 0.35, X + 2.6, y + 6.7, Z0 + 0.4, m(0xc8302a), { solid: false });
+        World.addBox(0.35, 0.35, 0.35, X - 2.6, y + 6.7, Z1 - 0.4, m(0xc8302a), { solid: false });
     },
 
     /* --------------------------------------------------------- the train */
@@ -26673,10 +26729,10 @@ var Railway = {
         Player.trainLock = false;
         this.riding = false;
         /* step off on the platform side */
-        var px = mid.x, pz = mid.z + (T.at === 'A' ? 3.4 : -3.4);
+        var px = mid.x + (T.at === 'A' ? 0 : 3.4), pz = mid.z + (T.at === 'A' ? 3.4 : 0);
         Player.pos.set(px, 0, pz);
         Player.rig.root.visible = true;
-        Player.yaw = T.at === 'A' ? 0 : Math.PI;
+        Player.yaw = T.at === 'A' ? 0 : Math.PI / 2;
         if (Player.snapCamera) { Player.snapCamera(); }
         SV.bus.emit('hud:note', { text: T.at === 'A' ? 'Port Halcyon. Union Station.' : 'Virginia Point. The mainland.' });
     },
