@@ -24,9 +24,11 @@ export const HAIR_STYLES: { id: HairStyle; label: string }[] = [
   { id: 'bob', label: 'Chin-Length Bob' },
   { id: 'ponytail', label: 'Low Ponytail' },
   { id: 'half_up', label: 'Half-Up Waves' },
+  { id: 'temple_braids', label: 'Long, Braided at the Temples' },
+  { id: 'crown_braid', label: 'Crown Braid' },
 ];
 
-export type BeardStyle = 'none' | 'stubble' | 'moustache' | 'short' | 'full' | 'forked';
+export type BeardStyle = 'none' | 'stubble' | 'moustache' | 'short' | 'full' | 'forked' | 'goatee' | 'braided';
 export const BEARD_STYLES: { id: BeardStyle; label: string }[] = [
   { id: 'none', label: 'Clean-Shaven' },
   { id: 'stubble', label: 'Stubble' },
@@ -34,6 +36,8 @@ export const BEARD_STYLES: { id: BeardStyle; label: string }[] = [
   { id: 'short', label: 'Short Beard' },
   { id: 'full', label: 'Full Beard' },
   { id: 'forked', label: 'Forked Beard' },
+  { id: 'goatee', label: 'Moustache & Goatee' },
+  { id: 'braided', label: 'Beard in Two Braids' },
 ];
 
 /**
@@ -52,8 +56,15 @@ export type OutfitStyle =
   | 'cotehardie' // close-fitting buttoned gown with tippets: well-to-do townswomen
   | 'gown'
   | 'riding_coat'
-  | 'court_dress';
-export const OUTFITS: { id: OutfitStyle; label: string; for: Sex | 'any'; minTier: number }[] = [
+  | 'court_dress'
+  | 'mail' // a mail hauberk under a heraldic surcoat, sword belt and boots: the watch, guards, knights
+  | 'sailor' // loose linen shirt, wide slops, a sash knotted at the hip, sea boots: sailors and pirates
+  | 'mage_robe' // a long robe embroidered with stars, bell sleeves, a rope girdle and pouch: the gifted
+  | 'plate' // a full harness of plate over mail, the arms embossed on the breastplate: knights
+  | 'hooded_tunic' // children: a belted tunic with a patterned hem and a hood worn down as a collar
+  | 'square_gown'; // children: a long gown with a square neckline and a trimmed hem
+/** `young`: children's clothes, worn only by children (and children wear nothing else; see `outfitAt`). */
+export const OUTFITS: { id: OutfitStyle; label: string; for: Sex | 'any'; minTier: number; young?: boolean }[] = [
   { id: 'smock', label: 'Field Smock', for: 'any', minTier: 0 },
   { id: 'tunic', label: 'Tunic & Hose', for: 'any', minTier: 0 },
   { id: 'apron_dress', label: 'Kirtle & Apron', for: 'any', minTier: 0 },
@@ -65,9 +76,30 @@ export const OUTFITS: { id: OutfitStyle; label: string; for: Sex | 'any'; minTie
   { id: 'gown', label: 'Houppelande Gown', for: 'any', minTier: 6 },
   { id: 'riding_coat', label: 'Tailored Riding Coat', for: 'any', minTier: 3 },
   { id: 'court_dress', label: 'Pleated Court Dress', for: 'any', minTier: 6 },
+  { id: 'mail', label: 'Mail Hauberk & Surcoat', for: 'any', minTier: 1 },
+  { id: 'sailor', label: "Sailor's Shirt & Slops", for: 'any', minTier: 0 },
+  { id: 'mage_robe', label: "Mage's Robe", for: 'any', minTier: 1 },
+  { id: 'plate', label: 'Full Plate Harness', for: 'any', minTier: 6 },
+  { id: 'hooded_tunic', label: "Child's Hooded Tunic", for: 'any', minTier: 0, young: true },
+  { id: 'square_gown', label: "Child's Square-Neck Gown", for: 'any', minTier: 0, young: true },
 ];
 
-export type Headwear = 'none' | 'coif' | 'hood' | 'straw_hat' | 'felt_cap' | 'veil' | 'wimple' | 'circlet' | 'crown';
+const YOUNG = new Set(OUTFITS.filter((o) => o.young).map((o) => o.id));
+/** Is this one of the children's outfits? */
+export const isChildOutfit = (outfit: OutfitStyle): boolean => YOUNG.has(outfit);
+
+/**
+ * What a Kynd actually wears at a stage of life. Children wear children's clothes: their own choice
+ * of the two, or (if what's kept for them is grown-up clothing) the tunic for a boy and the gown for a
+ * girl. Grown, they put children's clothes away for everyday dress. What's stored is never changed.
+ */
+export function outfitAt(outfit: OutfitStyle, sex: Sex, stage: string): OutfitStyle {
+  const young = YOUNG.has(outfit);
+  if (stage === 'child' || stage === 'infant') return young ? outfit : sex === 'female' ? 'square_gown' : 'hooded_tunic';
+  return young ? defaultOutfit(sex) : outfit;
+}
+
+export type Headwear = 'none' | 'coif' | 'hood' | 'straw_hat' | 'felt_cap' | 'veil' | 'wimple' | 'circlet' | 'crown' | 'mail_coif' | 'kettle_hat' | 'nasal_helm' | 'head_scarf' | 'pointed_hat' | 'flower_wreath';
 export const HEADWEAR: { id: Headwear; label: string; minTier: number }[] = [
   { id: 'none', label: 'Bare-Headed', minTier: 0 },
   { id: 'coif', label: 'Linen Coif', minTier: 0 },
@@ -78,10 +110,17 @@ export const HEADWEAR: { id: Headwear; label: string; minTier: number }[] = [
   { id: 'wimple', label: 'Wimple', minTier: 2 },
   { id: 'circlet', label: 'Circlet', minTier: 6 },
   { id: 'crown', label: 'Crown', minTier: 8 },
+  { id: 'mail_coif', label: 'Mail Coif', minTier: 1 },
+  { id: 'kettle_hat', label: 'Kettle Hat & Coif', minTier: 1 },
+  { id: 'nasal_helm', label: 'Nasal Helm & Coif', minTier: 2 },
+  { id: 'head_scarf', label: 'Knotted Head-Scarf', minTier: 0 },
+  { id: 'pointed_hat', label: "Mage's Pointed Hat", minTier: 1 },
+  { id: 'flower_wreath', label: 'Wreath of Roses & Leaves', minTier: 0 },
 ];
 
 /** Palettes offered in the Kynd Creator (the renderer accepts any hex colour). */
-export const SKIN_TONES = ['#f4d2b8', '#f0c7a4', '#e8b996', '#e0a882', '#d9a07a', '#c98e68', '#c48a64', '#b07550', '#9a6a4a', '#8a5a3c', '#6e452c', '#5a3824'];
+// (Appended to: an index into this list is never stored, but keep the old tones where they were.)
+export const SKIN_TONES = ['#f4d2b8', '#f0c7a4', '#e8b996', '#e0a882', '#d9a07a', '#c98e68', '#c48a64', '#b07550', '#9a6a4a', '#8a5a3c', '#6e452c', '#5a3824', '#d4a27c', '#b8865a', '#7a4e34', '#46291a'];
 export const HAIR_COLOURS = ['#1f1a17', '#2a1a14', '#4a2c1a', '#6b3a1e', '#8a6a3a', '#a8552b', '#c46a2e', '#d8b25a', '#e6cf8a', '#5a5048', '#8a7a6a', '#cfcac2'];
 export const EYE_COLOURS = ['#3a2a1e', '#5a3a1e', '#6b4a2a', '#4a6a8a', '#5a7a5a', '#7a8a9a', '#2a221c'];
 /** Dyes of the period: madder, woad, weld, walnut, lichen purple, undyed linen and wool. */
@@ -101,10 +140,31 @@ export const FACE_FIELDS = ['faceWidth', 'faceLength', 'cheekbones', 'eyeSpacing
  * the jaw's angle (rounded … sharp), the chin (receding … strong) and its width (pointed … broad),
  * the upper lip (thin … full, against the lower), the mouth's corners (down … up) and height (high …
  * low), the nose's width, bridge (low … high) and tip (drooping … upturned), and the cheeks
- * (hollow … full).
+ * (hollow … full), the cheekbones' height (low … high) and the forehead (sloping … upright).
  */
-export const DETAIL_FIELDS = ['jawAngle', 'chin', 'chinWidth', 'upperLip', 'mouthCorners', 'mouthHeight', 'noseWidth', 'noseBridge', 'noseTip', 'cheekFullness'] as const;
+export const DETAIL_FIELDS = ['jawAngle', 'chin', 'chinWidth', 'upperLip', 'mouthCorners', 'mouthHeight', 'noseWidth', 'noseBridge', 'noseTip', 'cheekFullness', 'cheekboneHeight', 'forehead'] as const;
 export type DetailField = (typeof DETAIL_FIELDS)[number];
+
+/**
+ * Face-shape presets (Kynd Creator ▸ Face shape): a starting bone structure, set as values of the
+ * face sliders (each still adjustable after). Male and female sets differ in degree, not in kind:
+ * there are broad-jawed women and soft-featured men.
+ */
+export type FacePreset = { id: string; label: string; values: Partial<Record<(typeof FACE_FIELDS)[number] | DetailField | 'jaw', number>> };
+export const FACE_PRESETS: Record<Sex, FacePreset[]> = {
+  male: [
+    { id: 'narrow', label: 'Narrow', values: { faceWidth: 0.2, faceLength: 0.75, jaw: 0.3, jawAngle: 0.55, chin: 0.6, chinWidth: 0.3, cheekbones: 0.6, cheekboneHeight: 0.6, cheekFullness: 0.3 } },
+    { id: 'broad', label: 'Broad-jawed', values: { faceWidth: 0.85, faceLength: 0.45, jaw: 0.95, jawAngle: 0.8, chin: 0.7, chinWidth: 0.85, cheekbones: 0.45, cheekboneHeight: 0.4, cheekFullness: 0.5 } },
+    { id: 'soft', label: 'Soft', values: { faceWidth: 0.6, faceLength: 0.4, jaw: 0.45, jawAngle: 0.15, chin: 0.35, chinWidth: 0.55, cheekbones: 0.3, cheekboneHeight: 0.45, cheekFullness: 0.8 } },
+    { id: 'angular', label: 'Angular', values: { faceWidth: 0.5, faceLength: 0.65, jaw: 0.75, jawAngle: 0.95, chin: 0.85, chinWidth: 0.45, cheekbones: 0.9, cheekboneHeight: 0.75, cheekFullness: 0.1 } },
+  ],
+  female: [
+    { id: 'narrow', label: 'Narrow', values: { faceWidth: 0.25, faceLength: 0.6, jaw: 0.15, jawAngle: 0.4, chin: 0.55, chinWidth: 0.15, cheekbones: 0.65, cheekboneHeight: 0.7, cheekFullness: 0.4 } },
+    { id: 'broad', label: 'Broad-jawed', values: { faceWidth: 0.8, faceLength: 0.45, jaw: 0.8, jawAngle: 0.65, chin: 0.6, chinWidth: 0.75, cheekbones: 0.6, cheekboneHeight: 0.5, cheekFullness: 0.5 } },
+    { id: 'round', label: 'Rounded', values: { faceWidth: 0.7, faceLength: 0.3, jaw: 0.35, jawAngle: 0.1, chin: 0.4, chinWidth: 0.6, cheekbones: 0.35, cheekboneHeight: 0.4, cheekFullness: 0.9 } },
+    { id: 'angular', label: 'Angular', values: { faceWidth: 0.45, faceLength: 0.6, jaw: 0.55, jawAngle: 0.9, chin: 0.75, chinWidth: 0.35, cheekbones: 0.95, cheekboneHeight: 0.8, cheekFullness: 0.15 } },
+  ],
+};
 
 /** Stable legacy migration: identity depends on proportions, never clothing or age-greyed hair. */
 function legacyFace(a: KyndAppearance): Record<(typeof FACE_FIELDS)[number], number> {

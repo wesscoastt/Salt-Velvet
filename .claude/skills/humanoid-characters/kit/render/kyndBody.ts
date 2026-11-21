@@ -333,59 +333,168 @@ function skull(theta: number, phi: number, s: HeadShape, out: THREE.Vector3): TH
   const ryB = 0.112 - s.child * 0.006;
   const ry = sy > 0 ? 0.13 : ryB * (0.80 + s.length * 0.44);
   const rz = sz > 0 ? 0.103 : 0.113;
-  // The lower front is boxier than an egg: the jaw carries the mouth and chin forward, then turns
-  // under the chin to the throat.
-  const e = 2 + 1.7 * smoothstep(0.3, 0.92, -sy) * smoothstep(0.05, 0.6, sz);
-  const r = e === 2 ? 1 / Math.sqrt((sx / rx) ** 2 + (sy / ry) ** 2 + (sz / rz) ** 2)
-    : Math.pow(Math.abs(sx / rx) ** e + Math.abs(sy / ry) ** e + Math.abs(sz / rz) ** e, -1 / e);
+  // In profile the lower front is fuller than an egg: the jaw carries the mouth and chin forward,
+  // then turns under the chin to the throat (`e`, between height and breadth). Seen from above,
+  // the jaw is an arch: a parabola at the teeth, blunter down at the chin (`h`, across and forward).
+  const front = smoothstep(0.05, 0.6, sz);
+  const e = 2 + 1.7 * smoothstep(0.3, 0.92, -sy) * front;
+  // (A broad chin is squarer across; a pointed one keeps the parabola.)
+  const h = 2 + lerp(0.1, 1.1, s.chinWidth) * smoothstep(0.76, 0.88, -sy) * front;
+  const ax = Math.abs(sx / rx), az = Math.abs(sz / rz);
+  const flat = h === 2 ? Math.sqrt(ax * ax + az * az) : Math.pow(ax ** h + az ** h, 1 / h);
+  const r = e === 2 ? 1 / Math.sqrt(flat * flat + (sy / ry) ** 2) : Math.pow(flat ** e + Math.abs(sy / ry) ** e, -1 / e);
   let x = sx * r;
   let y = sy * r;
   let z = sz * r;
   const low = Math.max(0, -y / ryB); // 0 at the centre line … 1 at the chin
-  // Lower face: narrower, with the jaw's corner set by `jaw`.
-  const jawCorner = Math.exp(-(((low - 0.62) / 0.22) ** 2));
-  const soft = 1 - Math.pow(low, 1.7) * (0.26 - s.jaw * 0.14 - s.child * 0.05);
-  x *= soft * (1 + jawCorner * (s.jaw - 0.45) * 0.14);
-  // A soft jaw narrows on toward the chin (an oval, not a U); a square one keeps its breadth.
-  x *= 1 - smoothstep(0.45, 1, low) * Math.max(0, 0.6 - s.jaw) * 0.3 * smoothstep(-0.03, 0.05, z) * (1 - s.child * 0.5);
   // Adult temples tuck in above the cheek arch; children keep a fuller cranium.
   x *= 1 - Math.exp(-(((y - 0.03) / 0.035) ** 2)) * 0.045 * (1 - s.child);
-  x *= 1 + Math.exp(-(((y + 0.025) / 0.028) ** 2)) * (s.cheeks - 0.5) * 0.3;
-  x *= mandible(y + 0.125, z, s);
+  if (y < 0) {
+    // The lower head's breadth at this height, as a factor on the egg's own. In front of the ears
+    // it is the face's outline (cheekbone, the jaw's angle, the jaw's border down to the chin: see
+    // `jawOutline`); behind them the skull draws in to the nape and the neck.
+    const v = Math.min(1, -y / ry);
+    const egg = Math.sqrt(Math.max(1e-4, 1 - v * v));
+    const nape = lerp(egg, Math.min(egg, 0.054 / rx), smoothstep(0.52, 0.9, v));
+    // (The ears sit on the skull's full breadth: the face narrows in front of them.)
+    x *= lerp(nape, jawOutlineAt(v, s, ry), smoothstep(-0.012, 0.03, z)) / egg;
+  }
   if (z > 0) {
     // A flatter face front, so the features sit on a plane rather than a ball.
     const side = Math.abs(sx);
     z *= 1 - side * side * 0.12;
-    // Chin forward a touch, the jaw line tucked under.
-    z *= 1 + Math.exp(-(((low - 0.9) / 0.12) ** 2)) * lerp(0.025, 0.08, s.chin) * (1 - side);
+    // The chin stands forward (receding … prominent), the jaw line tucked under.
+    z *= 1 + Math.exp(-(((low - 0.9) / 0.12) ** 2)) * lerp(-0.015, 0.13, s.chin) * Math.max(0, 1 - side * 1.3) * (1 - s.child * 0.15);
+    // The forehead: sloping back … upright and full.
+    z *= 1 + Math.exp(-(((y - 0.07) / 0.04) ** 2)) * (s.forehead - 0.5) * 0.06 * (1 - side);
   } else {
     // Back of the skull full at the top, tucking into the nape below.
     z *= 1 + Math.max(0, y / 0.13) * 0.04 - smoothstep(0.1, 0.85, low) * 0.34;
+  }
+  if (y < 0) {
+    // Under the jaw: the jaw bone's lower border runs from the chin back and up to its angle, seen
+    // from the side, and from the chin's corner up and out to the angle, seen from the front. Below
+    // it the surface turns in toward the throat, so a jawline shows instead of a bag curving under
+    // to the nape. Heights are left alone (every column of the head still falls steadily, so the
+    // face's rows of constant height meet it once); only x and z draw in.
+    const J = jawLandmarks(s, ry);
+    const tz = clamp01((z - J.gonZ) / (J.chinZ - J.gonZ));
+    const line = lerp(J.gonY, J.chinY, Math.pow(tz, 1.1));
+    // Rounded … sharp: how quickly the surface turns under (a child's always soft).
+    const span = lerp(0.03, 0.012, s.jawAngle) * (1 + s.child * 1.2);
+    const below = smoothstep(0, span, line - y) * smoothstep(-0.03, 0.005, z);
+    const tuck = below * (0.34 + s.jawAngle * 0.14) * (1 - s.child * 0.4);
+    if (z > 0) z *= 1 - tuck;
+    x *= 1 - tuck * 0.5;
   }
   if (y < 0) y *= 1 - Math.max(0, -sz) * 0.25; // the nape sits higher than the chin
   return out.set(x, y + 0.125, z);
 }
 
 /**
- * The jaw bone's outline on the side of the face, as a factor on the skull's width at head-space
- * height `yh` and depth `z`: the side of the face is held out down to the jaw's lower border (which
- * runs from its angle, below the ear, forward and down to the chin) and tucks in sharply under it,
- * so a jawline shows instead of an egg curving smoothly under into the neck. A square jaw has a
- * fuller, more angular border; a child's is soft.
+ * `jawOutline`, read from a table made once per head (it is a smooth curve in `v` alone for a given
+ * head, and the skull asks for it at every vertex below the eyes: most of a head's build time).
  */
-export function mandible(yh: number, z: number, s: HeadShape): number {
-  const J = s.jaw;
-  const soft = 1 - s.child * 0.65;
-  // The border's height: highest at the angle, falling forward to the chin.
-  const yB = lerp(0.039 - J * 0.004, 0.026, smoothstep(0.0, 0.07, z));
-  // Only along the jaw: from the angle (just in front of the ear) to the side of the chin.
-  const along = smoothstep(-0.025, 0.002, z) * (1 - smoothstep(0.07, 0.1, z));
-  // Held out above the border (most just above it), cut in below it.
-  // The angle: rounded (the cut softer and higher up the jaw) … sharp (crisper, held out more).
-  const A = s.jawAngle;
-  const hold = clamp01((yB + 0.022 - yh) / 0.022) * smoothstep(yB - 0.005, yB + 0.001, yh);
-  const under = smoothstep(yB + 0.001, yB - lerp(0.016, 0.005, A), yh);
-  return 1 + along * soft * ((0.05 + J * 0.09) * lerp(0.55, 1.45, A) * hold - (0.05 + J * 0.03) * lerp(0.6, 1.35, A) * under);
+const JAW_SAMPLES = 1024;
+const jawTables = new WeakMap<HeadShape, { ry: number; t: Float32Array }>();
+function jawOutlineAt(v: number, s: HeadShape, ry: number): number {
+  let tab = jawTables.get(s);
+  if (!tab || tab.ry !== ry) {
+    const t = new Float32Array(JAW_SAMPLES + 1);
+    for (let i = 0; i <= JAW_SAMPLES; i++) t[i] = jawOutline(i / JAW_SAMPLES, s, ry);
+    tab = { ry, t };
+    jawTables.set(s, tab);
+  }
+  const f = Math.max(0, Math.min(1, v)) * JAW_SAMPLES;
+  const i = Math.min(JAW_SAMPLES - 1, Math.floor(f));
+  return tab.t[i] + (tab.t[i + 1] - tab.t[i]) * (f - i);
+}
+
+/**
+ * Where the jaw's landmarks sit, in skull space (y about the head's middle, z forward): the angle
+ * (gonion) below and just in front of the ear, level with the mouth, and the bottom of the chin.
+ */
+function jawLandmarks(s: HeadShape, ry: number): { gonY: number; gonZ: number; chinY: number; chinZ: number; gonV: number } {
+  // A strong, sharp jaw has a longer back edge (its angle sits lower); a child's angle sits high.
+  const gonV = lerp(0.6, 0.68, s.jawAngle * 0.5 + s.jaw * 0.5) - s.child * 0.04 - s.age * 0.01;
+  return { gonY: -ry * gonV, gonZ: 0.012 - s.jaw * 0.004, chinY: -ry * 0.99, chinZ: 0.075 + s.chin * 0.012, gonV };
+}
+
+/** Half-widths (fractions of the skull's width) at the cheekbone, the jaw's angle and the chin's corner. */
+function jawWidths(s: HeadShape): { Z: number; G: number; C: number } {
+  // The face in front of the ears is narrower than the skull behind them; broad cheekbones less so.
+  // (At the cheekbones the face is about as broad as anywhere: the temples above are narrower.)
+  const Z = 0.975 + (s.cheeks - 0.5) * 0.08 * (1 - s.child * 0.6);
+  // At the angle: narrow … wide; a child's jaw is small.
+  const G = lerp(0.5, 0.73, s.jaw) * (1 - s.child * 0.06);
+  // The chin: pointed … broad (a wide jaw carries a broader chin).
+  const C = lerp(0.13, 0.3, s.chinWidth) * lerp(0.88, 1.12, s.jaw);
+  return { Z, G, C };
+}
+
+/** A cubic through (0, a) and (1, b) with end slopes ma and mb (per unit t). */
+function hermite(t: number, a: number, ma: number, b: number, mb: number): number {
+  const t2 = t * t, t3 = t2 * t;
+  return (2 * t3 - 3 * t2 + 1) * a + (t3 - 2 * t2 + t) * ma + (-2 * t3 + 3 * t2) * b + (t3 - t2) * mb;
+}
+
+/**
+ * The face's half-width (as a fraction of the skull's full width) at depth `v` down the lower head
+ * (0 at the middle of the head, 1 at the chin's underside), seen from the front: in from the
+ * temple to the cheekbone, down the cheek (fuller or hollower) to the jaw's angle, along the jaw's
+ * lower border to the chin's corner, then round under the chin. A rounded angle blurs the corner
+ * at the jaw; a sharp one keeps it.
+ */
+export function jawOutline(v: number, s: HeadShape, ry: number): number {
+  const { gonV: vG } = jawLandmarks(s, ry);
+  const vZ = 0.2 - (s.cheekboneHeight - 0.5) * 0.1;
+  const vC = 0.93;
+  const grown = 1 - s.child;
+  const { Z, G, C } = jawWidths(s);
+  // The cheek between cheekbone and jaw: hollow (in) … full (out); full in a child, drawn in age.
+  const fill = (s.cheekFullness - 0.5) * 0.07 * grown + s.child * 0.045 - s.age * 0.015;
+  // Slopes (per unit v): gently in at the cheekbone, nearly upright coming down into the angle
+  // (the back edge of the jaw), so the outline has no crease but the one at the angle.
+  const mZ = (G - Z) / (vG - vZ) * 0.55;
+  const mG = -0.22;
+  // The jaw's breadth down at the chin's level (the arch closes it to the chin's own width).
+  const P = Math.min(G * 0.74, C / 0.6);
+  const sharpAt = (u: number): number => {
+    if (u <= vZ) {
+      // From the skull above with no bend at all (a bend shows as a line in the shading), in to
+      // the cheekbone at the cheek's own slope.
+      // (Starting with the egg's own curve, 1 − v²/2, so the two meet without a change of bend.)
+      const t = u / vZ, c2 = -(vZ * vZ) / 2;
+      const B = mZ * vZ - 2 * c2 - 3 * (Z - 1 - c2), A = Z - 1 - c2 - B;
+      return 1 + c2 * t * t + A * t * t * t + B * t * t * t * t;
+    }
+    if (u <= vG) {
+      const d = vG - vZ, t = (u - vZ) / d;
+      return hermite(t, Z, mZ * d, G, mG * d) + Math.sin(Math.PI * t) ** 2 * fill;
+    }
+    // Below the angle the jaw's side draws in only gently: its lower border (a slanting line in
+    // space, see `skull`) and the arch of the jaw make the outline from the angle to the chin.
+    if (u <= vC) return hermite((u - vG) / (vC - vG), G, mG * (vC - vG), P, (P - G) * 1.4);
+    const t = (u - vC) / (1 - vC);
+    return P * Math.sqrt(Math.max(0, 1 - t * t));
+  };
+  // Rounded … sharp: average the outline over a window that shrinks as the angle sharpens.
+  // (A smooth, bell-shaped window over nine samples, so the shading shows no bands.)
+  // (It closes up toward the outline's top, where the skull above takes over: no seam there.)
+  const w = Math.min(lerp(0.13, 0.03, s.jawAngle) + s.child * 0.07, v * 0.8);
+  let sum = 0, n = 0;
+  for (let i = -4; i <= 4; i++) {
+    const k = i / 4;
+    const wt = Math.cos((k * Math.PI) / 2) ** 2;
+    const u = v + k * w;
+    // Past the ends the outline continues as the skull above and closes at the chin.
+    sum += wt * (u < 0 ? 1 : u > 1 ? 0 : sharpAt(u));
+    n += wt;
+  }
+  // A child's face is a round, full oval: soft cheeks carried low, a small rounded chin, and none
+  // of a grown face's flare at the cheekbones over a narrower jaw (which on a child reads as alien).
+  const round = Math.pow(Math.max(0, 1 - Math.pow(Math.min(1, v), 2.6)), 0.55);
+  return lerp(sum / n, round, Math.min(1, s.child) * 0.8);
 }
 
 /** Face relief over the skull: sockets, brow, nose, cheeks, muzzle and chin. */
@@ -659,7 +768,9 @@ export function buildHead(B: BodyBuckets, head: Head, C: Palette, look: FullAppe
   const rows: Row[] = [{ us: [0], v: 0, kind: 0, yc: FACE_ROW_HIGH, frac: 0 }];
   for (const [frac, n] of [[0.3, 14], [0.55, 22], [0.78, 30]]) rows.push({ us: ring(n), v: 0, kind: 0, yc: FACE_ROW_HIGH, frac });
   for (const r of faceRows()) rows.push({ us: r.us, v: 0, kind: 1, yc: r.y, frac: 0 });
-  for (const [frac, n] of [[0.16, 60], [0.36, 40], [0.6, 26], [0.82, 14]]) rows.push({ us: ring(n), v: 0, kind: 2, yc: FACE_ROW_LOW, frac });
+  // Under the jaw: rings close together where the jaw's lower border turns under (a crisp jawline
+  // needs them), then fewer toward the throat.
+  for (const [frac, n] of [[0.04, 72], [0.08, 72], [0.12, 68], [0.17, 64], [0.23, 58], [0.3, 50], [0.39, 42], [0.5, 34], [0.64, 26], [0.82, 14]]) rows.push({ us: ring(n), v: 0, kind: 2, yc: FACE_ROW_LOW, frac });
   rows.push({ us: [0], v: 0, kind: 2, yc: FACE_ROW_LOW, frac: 1 });
   rows.forEach((r, i) => (r.v = i));
   // The mouth: the two rows either side of the mouth line meet on it across the lips (so closed
@@ -1021,6 +1132,57 @@ export interface HairInfo {
 /** How much of each hairstyle a headwear leaves visible. */
 export type HairCover = 'none' | 'hat' | 'coif' | 'hood' | 'veil' | 'band';
 
+/**
+ * The front of a dressed body: for a point (x, y), how far forward (z) the surface reaches there.
+ * Built from the garment and body buckets in rest pose, below `maxY` (so the face and the hair
+ * don't count). Hair that falls forward over the clothes (braids) is laid along it.
+ */
+export class FrontProbe {
+  private readonly tris: number[] = [];
+  private readonly cells = new Map<string, number[]>();
+  private static readonly CELL = 0.02;
+
+  constructor(buckets: { pos: number[]; idx: number[] }[], maxY: number) {
+    for (const b of buckets) {
+      for (let t = 0; t < b.idx.length; t += 3) {
+        const v = [b.idx[t], b.idx[t + 1], b.idx[t + 2]].map((i) => [b.pos[i * 3], b.pos[i * 3 + 1], b.pos[i * 3 + 2]]);
+        if (v.some((p) => p[1] > maxY)) continue;
+        const ti = this.tris.length / 9;
+        this.tris.push(...v[0], ...v[1], ...v[2]);
+        const C = FrontProbe.CELL;
+        const x0 = Math.floor(Math.min(v[0][0], v[1][0], v[2][0]) / C), x1 = Math.floor(Math.max(v[0][0], v[1][0], v[2][0]) / C);
+        const y0 = Math.floor(Math.min(v[0][1], v[1][1], v[2][1]) / C), y1 = Math.floor(Math.max(v[0][1], v[1][1], v[2][1]) / C);
+        for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) {
+          const k = `${x},${y}`;
+          let list = this.cells.get(k);
+          if (!list) this.cells.set(k, (list = []));
+          list.push(ti);
+        }
+      }
+    }
+  }
+
+  /** The surface's forward-most z at (x, y), or null if nothing is there. */
+  z(x: number, y: number): number | null {
+    const list = this.cells.get(`${Math.floor(x / FrontProbe.CELL)},${Math.floor(y / FrontProbe.CELL)}`);
+    if (!list) return null;
+    let best: number | null = null;
+    const T = this.tris;
+    for (const ti of list) {
+      const o = ti * 9;
+      const ax = T[o], ay = T[o + 1], bx = T[o + 3], by = T[o + 4], cx = T[o + 6], cy = T[o + 7];
+      const d = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy);
+      if (Math.abs(d) < 1e-12) continue;
+      const u = ((by - cy) * (x - cx) + (cx - bx) * (y - cy)) / d;
+      const v = ((cy - ay) * (x - cx) + (ax - cx) * (y - cy)) / d;
+      if (u < -1e-6 || v < -1e-6 || u + v > 1 + 1e-6) continue;
+      const z = u * T[o + 2] + v * T[o + 5] + (1 - u - v) * T[o + 8];
+      if (best === null || z > best) best = z;
+    }
+    return best;
+  }
+}
+
 export function hairCrown(style: string): number {
   switch (style) {
     case 'shaved':
@@ -1040,8 +1202,11 @@ export function hairCrown(style: string): number {
   }
 }
 
-export function buildHair(B: BodyBuckets, head: Head, C: Palette, look: FullAppearance, cover: HairCover, m: Measure): void {
-  const style = look.hairStyle;
+export function buildHair(B: BodyBuckets, head: Head, C: Palette, look: FullAppearance, cover: HairCover, m: Measure, under?: FrontProbe): void {
+  // Braided styles are built on a base cut: long hair under temple braids, hair drawn up (as for a
+  // bun) under a crown braid.
+  const named = look.hairStyle;
+  const style = named === 'temple_braids' ? 'long' : named === 'crown_braid' ? 'bun' : named;
   const female = look.sex === 'female';
   const crown = hairCrown(style);
   const tuck = cover === 'hood' || cover === 'veil';
@@ -1151,7 +1316,8 @@ export function buildHair(B: BodyBuckets, head: Head, C: Palette, look: FullAppe
       // Over the forehead and temples they stop short of the hairline (which fades in on its own);
       // at the nape of short hair the tips run on past it, ragged.
       const nape = smoothstep(1.9, 2.6, a) * (pulled ? 0 : 1);
-      const tEnd = falling && a > 0.9 ? 0.8 : lerp(0.93, style === 'cropped' ? 1.0 : 1.05 + rnd(i + 9) * 0.05, nape);
+      // (Half-up: the combed-back locks run on down over where the loose hair comes out from under them.)
+      const tEnd = falling && a > 0.9 ? (style === 'half_up' ? 0.95 : 0.8) : lerp(0.93, style === 'cropped' ? 1.0 : 1.05 + rnd(i + 9) * 0.05, nape);
       const t0 = row ? 0.14 + rnd(i + 3) * 0.1 : 0.03 + rnd(i + 5) * 0.05;
       // A gentle sweep round the head (away from a parting), more on short hair.
       const sweep = (style === 'short' ? 0.35 : 0.12) * (part !== null && th0 < part ? -1 : 1) * (0.6 + rnd(i + 7) * 0.6);
@@ -1263,11 +1429,14 @@ export function buildHair(B: BodyBuckets, head: Head, C: Palette, look: FullAppe
       const rTop = r0 - above * above * 6;
       const flare = Math.max(0, 0.06 - y) * (0.2 + 0.28 * Math.abs(Math.sin(th))) + (wave ? (0.007 * Math.sin(y * 23 + u * 2) + 0.002 * Math.sin(y * 41 - u)) * smoothstep(0.1, -0.05, y) : 0);
       const flip = style === 'shoulder' ? smoothstep(0.7, 1, t) * (0.006 + clump(u) * 0.004) : 0;
-      const vol = crown * 1.2 + 0.005 * clump(u) + flare + flip;
+      // Half-up: the top is drawn back to the knot, so the loose hair comes out from under it and
+      // only gathers its volume lower down (full volume at the top stood out as a separate ledge).
+      const drawn = style === 'half_up' ? smoothstep(0.08, 0.5, t) : 1;
+      const vol = (crown * 1.2 + 0.005 * clump(u) + flare + flip) * drawn;
       let r = rTop + (inner ? vol * 0.3 : vol) * (1 - smoothstep(0.82, 1, t) * 0.6);
       // Feather the hanging sheet into the actual scalp surface. A fixed-radius
       // start left a square ledge beside the temples, especially under hats.
-      const join = smoothstep(0, 0.2, t);
+      const join = smoothstep(0, style === 'half_up' ? 0.45 : 0.2, t);
       if (join < 1) {
         const phi = head.phiAt(th, y);
         const cap = thick(th, phi / pe(th));
@@ -1311,51 +1480,92 @@ export function buildHair(B: BodyBuckets, head: Head, C: Palette, look: FullAppe
     });
   }
 
-  // Braids: interlaced lobes, tied off with a tuft.
-  const braid = (pts: THREE.Vector3[], r0: number, lobes: number, weights: (p: THREE.Vector3, t: number) => Weights) => {
+  // Braids: three strands plaited over and under one another, tied off with a tuft. Each strand is
+  // one continuous tube on the classic plait curve (across: cos φ, front-to-back: sin 2φ / 2, the
+  // three a third of a turn apart), so the braid reads as woven hair, not a string of beads.
+  // (`ring`: a braid pinned round the head, its end tucked under its start: even all along, no tie.)
+  const braid = (pts: THREE.Vector3[], r0: number, lobes: number, weights: (p: THREE.Vector3, t: number) => Weights, ring = false) => {
     const path = new Path(pts, 40);
-    const endT = 0.93;
-    for (let i = 0; i < lobes; i++) {
-      const t0 = (i / lobes) * endT;
-      const t1 = Math.min(endT + 0.01, ((i + 1.4) / lobes) * endT);
-      const r = r0 * (1 - (t0 / endT) * 0.4);
-      const side = i % 2 ? 1 : -1;
-      const lobePath = new Path(
-        [0, 0.33, 0.66, 1].map((q) => {
-          const t = t0 + (t1 - t0) * q;
-          // Alternate lobes lean left and right across the braid.
-          return path.frame(t, 0, side * r * 0.35 * Math.sin(q * Math.PI), new THREE.Vector3());
+    const endT = ring ? 1 : 0.93;
+    const turns = lobes / 3;
+    for (let k = 0; k < 3; k++) {
+      const phase = (k * 2 * Math.PI) / 3;
+      const N = Math.max(36, lobes * 7);
+      const strand = new Path(
+        range(0, endT, N).map((t) => {
+          const u = t / endT;
+          const r = r0 * (1 - u * (ring ? 0 : 0.4));
+          // The plait gathers in to the tie over its last stretch.
+          const spread = ring ? 1 : 1 - 0.55 * smoothstep(0.82, 1, u);
+          const phi = 2 * Math.PI * turns * u + phase;
+          return path.frame(t, r * 0.42 * spread * Math.sin(2 * phi), r * 0.62 * spread * Math.cos(phi), new THREE.Vector3()).clone();
         }),
-        8,
+        N,
       );
-      tube(B.hair, lobePath, {
+      tube(B.hair, strand, {
         radius: (t) => {
-          const env = Math.sin(Math.max(0, Math.min(1, t)) * Math.PI);
-          return [r * 0.72 * env, r * 0.95 * env];
+          const r = r0 * (1 - Math.min(1, t) * (ring ? 0 : 0.4)) * 0.6;
+          return [r * 0.8, r];
         },
-        paint: (t) => ({ c: mixCol(C.hairDark, C.hairLight, 0.3 + Math.sin(t * Math.PI) * 0.35) }),
+        // A strand is lit where it crosses over the others and shadowed where it dips under them.
+        paint: (t) => {
+          const phi = 2 * Math.PI * turns * t + phase;
+          const over = 0.5 + 0.5 * Math.sin(2 * phi);
+          return { c: over > 0.5 ? mixCol(C.hair, C.hairLight, (over - 0.5) * 0.7) : mixCol(C.hairDark, C.hair, 0.35 + over * 1.3) };
+        },
         weights,
         seg: 7,
-        steps: 6,
-        uv: (t, th) => [th + side, t * 2],
+        steps: N,
+        uv: (t, th) => [th + k, t * lobes],
       });
     }
+    if (ring) return;
     const tie = path.point(endT);
     ellipsoid(B.hair, tie, [r0 * 0.42, r0 * 0.32, r0 * 0.42], () => ({ c: shade(C.hairDark, 0.6) }), (p) => weights(p, endT), 8, 5);
     const end = path.point(1);
     const dir = end.clone().sub(tie).normalize();
-    const tuft = new Path([tie, tie.clone().addScaledVector(dir, 0.025), tie.clone().addScaledVector(dir, 0.05)], 8);
-    tube(B.hair, tuft, { radius: (t) => [r0 * 0.55 * (1 - t) + 0.001, r0 * 0.6 * Math.sin(Math.min(1, t * 2 + 0.3) * 2) * (1 - t) + 0.001], paint: () => ({ c: C.hair }), weights: (p) => weights(p, 1), seg: 7, steps: 5 });
+    // Below the tie the loose ends fan out into a soft brush, not a point.
+    const tuft = new Path([tie, tie.clone().addScaledVector(dir, 0.022), tie.clone().addScaledVector(dir, 0.045)], 8);
+    tube(B.hair, tuft, {
+      radius: (t) => {
+        const r = r0 * (0.42 + 0.42 * Math.sin(Math.min(1, t * 1.25) * Math.PI * 0.62)) * (1 - Math.pow(t, 4) * 0.75) + 0.001;
+        return [r * 0.8, r];
+      },
+      paint: (t) => ({ c: mixCol(C.hair, C.hairLight, t * 0.3) }),
+      weights: (p) => weights(p, 1),
+      seg: 8,
+      steps: 6,
+    });
   };
   if (style === 'braid' && !tuck) {
     const pts = [hp(0.0, 0.09, -0.1), hp(0.01, 0.02, -0.125), hp(0.015, -0.1, -0.14), hp(0.012, -0.24, -0.15), hp(0.01, -0.34, -0.15)];
-    braid(pts, 0.021, 10, (p) => neckAt(p));
+    // Down the back the braid moves with the shoulders, not the turning head.
+    braid(pts, 0.021, 10, (p) => {
+      const k = smoothstep(-0.02, -0.14, p.y - HEAD_Y);
+      return k > 0 ? [BI.head, 1 - k, BI.spine, k] : neckAt(p);
+    });
   }
   if (style === 'twin_braids' && !tuck) {
     for (const s of [-1, 1]) {
       const sx = m.shX * 0.72;
-      const pts = [hp(s * 0.075, 0.08, -0.05), hp(s * 0.09, 0.02, -0.03), hp(s * sx, -0.06, 0.03), hp(s * (sx + 0.01), -0.16, 0.08), hp(s * (sx + 0.005), -0.27, 0.095)];
-      braid(pts, 0.016, 9, (p) => {
+      const r0 = 0.018;
+      let pts = [hp(s * 0.075, 0.08, -0.05), hp(s * 0.09, 0.02, -0.03), hp(s * sx, -0.06, 0.03), hp(s * (sx + 0.01), -0.16, 0.08), hp(s * (sx + 0.005), -0.27, 0.095)];
+      if (under) {
+        // Over the shoulder and down the front, the braid lies on the clothes (whatever they are),
+        // never through them: resample the fall and lift each point clear of the surface beneath.
+        const fall = new Path(pts, 40);
+        pts = range(0, 1, 24).map((t) => {
+          const p = fall.point(t).clone();
+          if (p.y < HEAD_Y - 0.06) {
+            // The braid is as wide as two lobes: clear the surface under its whole width.
+            let front = -Infinity;
+            for (const dx of [-r0, 0, r0]) for (const dy of [-1.5 * r0, -0.5 * r0, 0.5 * r0, 1.5 * r0]) front = Math.max(front, under.z(p.x + dx, p.y + dy) ?? -Infinity);
+            if (front > -Infinity) p.z = Math.max(p.z, front + r0 * 1.05 + 0.004);
+          }
+          return p;
+        });
+      }
+      braid(pts, r0, 9, (p) => {
         const y = p.y - HEAD_Y;
         const k = smoothstep(0.02, -0.08, y);
         return [BI.head, 1 - k, BI.spine, k];
@@ -1380,7 +1590,33 @@ export function buildHair(B: BodyBuckets, head: Head, C: Palette, look: FullAppe
     });
     ellipsoid(B.hair, tie, [0.027, 0.008, 0.028], () => ({ c: C.accent }), () => [BI.head, 1], 16, 8);
   }
-  if ((style === 'bun' || style === 'half_up') && !tuck && !coveredCrown) {
+  // Temple braids: a thin plait from each temple drawn back over the loose hair, the two tied
+  // together at the back of the head.
+  if (named === 'temple_braids' && !tuck && !coveredCrown) {
+    const r0 = 0.0075;
+    const lie = (theta: number, y: number) => {
+      head.shell(theta, head.phiAt(theta, y), crown * 1.55 + r0 * 0.55, tmp);
+      return hp(tmp.x, tmp.y, tmp.z);
+    };
+    for (const s of [-1, 1]) {
+      const pts = [lie(s * 0.9, 0.172), lie(s * 1.35, 0.162), lie(s * 1.9, 0.146), lie(s * 2.45, 0.132), lie(s * 2.85, 0.122), lie(s * 3.02, 0.108), lie(s * 3.08, 0.088)];
+      braid(pts, r0, 12, () => [BI.head, 1]);
+    }
+  }
+  // A crown braid: one plait pinned right round the head, over the top just behind the hairline and
+  // low across the back, the hair beneath drawn up smooth into it.
+  if (named === 'crown_braid' && !tuck && !coveredCrown) {
+    const r0 = 0.016;
+    const pts: THREE.Vector3[] = [];
+    for (let i = 0; i <= 28; i++) {
+      const theta = Math.PI * 0.85 - (i / 28) * Math.PI * 2.08;
+      const y = 0.17 + 0.038 * Math.cos(theta);
+      head.shell(theta, head.phiAt(theta, y), crown * 0.9 + r0 * 0.5, tmp);
+      pts.push(hp(tmp.x, tmp.y, tmp.z));
+    }
+    braid(pts, r0, 22, () => [BI.head, 1], true);
+  }
+  if ((style === 'bun' || style === 'half_up') && named !== 'crown_braid' && !tuck && !coveredCrown) {
     const c = hp(0, 0.165, -0.115);
     ellipsoid(B.hair, c, [0.042, 0.036, 0.034], (_p, n) => ({ c: mixCol(C.hairDark, C.hairLight, 0.3 + n.y * 0.3) }), () => [BI.head, 1], 14, 9, new THREE.Euler(0.5, 0, 0));
     // A twist wrapped around it.
@@ -1445,61 +1681,67 @@ function buildMouth(B: BodyBuckets, head: Head, lipC: THREE.Color): void {
 /** The neck's radius at a height (it's a touch deeper front to back: `* 1.02` on z), for collars to fit. */
 export function neckRadius(s: { female: boolean; child: number }, y: number): number {
   const t = (y - 1.43) / 0.23;
-  return (s.female ? 0.047 : 0.056) * (1 - s.child * 0.1) * (1.1 - Math.sin(t * Math.PI) * 0.14 - smoothstep(0.45, 0.85, t) * 0.12);
+  return (s.female ? 0.047 : 0.056) * (1 - s.child * 0.1) * (1.1 - Math.sin(t * Math.PI) * 0.14 - smoothstep(0.45, 0.85, t) * 0.05);
 }
 
 /** Where the neck's axis sits front to back at a height (behind the body's centre line). */
 export const neckZ = (y: number): number => -0.012 + ((y - 1.43) / 0.23) * 0.004;
 
 /**
- * Beards and moustaches, built over the jaw so they move when the Kynd talks. A moustache is a fan
- * of tapered locks combed out from the middle (on a beard the outer ones run down into it); a
+ * Beards and moustaches, built over the jaw so they move when the Kynd talks. A moustache is one
+ * combed mass over the upper lip with a ragged fringe (on a beard its ends droop into it); a
  * beard is a shell that feathers out to nothing along a ragged cheek line, over a shadow of stubble
  * (set in `KyndAvatar`), so it grows out of the skin instead of sitting on it.
  */
-export function buildBeard(B: BodyBuckets, head: Head, C: Palette, style: string): void {
+export function buildBeard(B: BodyBuckets, head: Head, C: Palette, style: string, under?: FrontProbe): void {
   if (style === 'none' || style === 'stubble') return;
   const f = head.f;
   const beardC = mixCol(C.hair, C.hairDark, 0.3);
   const tmp = new THREE.Vector3();
-  const full = style === 'full' || style === 'forked';
+  const full = style === 'full' || style === 'forked' || style === 'braided';
+  const goatee = style === 'goatee';
   const joined = style !== 'moustache';
   const reach = f.mouthW + (full ? 0.009 : 0.007);
-  const LOCKS = 6;
-  // The moustache fills the upper lip, from under the nose to just over the lip's edge.
+  // The moustache: one combed mass over the upper lip, narrow under the nose and spreading to the
+  // corners, where it droops (into the beard, if there is one). Thickest across the middle, growing
+  // out of the skin at the top and thinning to a ragged fringe over the lip; the hair material's
+  // streaks run down and outward, the way it's combed.
   const top = f.noseBaseY - 0.0016, bottom = f.mouthY + f.lipUp * 0.45;
-  const mid = (top + bottom) / 2, half = Math.max(0.003, (top - bottom) / 2);
-  for (const s of [-1, 1] as const) {
-    for (let k = 0; k < LOCKS; k++) {
-      const q = k / (LOCKS - 1);
-      // Inner locks start at the middle under the nose and are short; outer ones start further out,
-      // sweep to the corner and droop (into the beard, if there is one).
-      const x0 = lerp(-0.0015, reach * 0.45, q), x1 = reach * lerp(0.5, 1, q);
-      const y0 = mid - half * 0.1 + Math.sin(k * 2.1) * half * 0.12;
-      const droop = (joined ? lerp(0.003, 0.009, q) : lerp(0.004, 0.012, q)) + (y0 - bottom) * 0.35;
-      const pts = [0, 0.4, 0.75, 1].map((t) => {
-        const x = s * lerp(x0, x1, t);
-        const y = y0 - t * t * droop;
-        // Locks lie on the lip; the inner ones a touch proud of the outer, so they overlap like combed hair.
-        return hp(x, y, head.frontZ(x, y) + 0.0013 + (1 - q) * 0.0008 - t * t * 0.0012);
-      });
-      const tone = mixCol(beardC, k % 2 ? C.hairDark : C.hairLight, 0.1 + 0.06 * Math.sin(k * 2.3 + s));
-      tube(B.hair, new Path(pts, 12, new THREE.Vector3(0, 0, 1)), {
-        // Flat against the lip, full along most of its length, thinning to a soft end.
-        radius: (t) => {
-          const r = capsuleR(t, lerp(0.04, 0.18, q), 0.12) * (1 - t * 0.5) * lerp(1, 0.8, q);
-          return [0.0026 * r, half * (full ? 1.05 : 0.9) * r];
-        },
-        paint: (t) => ({ c: mixCol(tone, C.hairLight, 0.1 * t) }),
-        weights: (p) => faceWeights(p, f),
-        seg: 7,
-        steps: 9,
-      });
-    }
-  }
+  const droopAt = (a: number) => (joined ? lerp(0.0012, 0.0075, a * a) : lerp(0.0016, 0.0105, a * a));
+  const mx = (u: number, v: number) => u * lerp(reach * 0.5, reach, Math.sqrt(v));
+  const my = (u: number, v: number) => {
+    const a = Math.abs(u);
+    const fringe = (Math.sin(u * 17 + 0.3) * 0.6 + Math.sin(u * 29 + 1.1) * 0.4) * 0.0006 * smoothstep(0.7, 1, v);
+    // A slight parting in the middle under the nose; the top follows the nose's base round, unevenly.
+    const part = 0.0009 * Math.exp(-((u / 0.08) ** 2)) * (1 - v);
+    const brow = (0.0016 * a * a + Math.sin(u * 13 + 0.9) * 0.0004) * (1 - v);
+    return lerp(top - part - brow, bottom - droopAt(a), v) + fringe;
+  };
+  grid(B.hair, {
+    us: range(-1, 1, 52),
+    vs: [0, 0.06, 0.15, 0.3, 0.45, 0.6, 0.75, 0.88, 0.96, 1],
+    at: (u, v, out) => {
+      const x = mx(u, v), y = my(u, v);
+      const a = Math.abs(u);
+      const th = 0.0034 * (full ? 1.1 : 1) * Math.pow(Math.sin(Math.min(1, v * 1.25) * Math.PI * 0.5), 0.7) * (1 - 0.8 * smoothstep(0.85, 1, v)) * (1 - Math.pow(a, 4));
+      return hp(x, y, head.frontZ(x, y) + 0.0009 + th, out);
+    },
+    paint: (u, v) => {
+      const streak = Math.sin(u * 23 + 0.7) * 0.5 + Math.sin(u * 51) * 0.5;
+      const c = mixCol(beardC, streak > 0 ? C.hairLight : C.hairDark, Math.abs(streak) * 0.18);
+      // Grows from the skin at the top; catches the light across the middle.
+      return { c: mixCol(mixCol(c, C.skin, Math.max(smoothstep(0.16, 0, v) * 0.8, smoothstep(0.82, 1, Math.abs(u)) * 0.5)), C.hairLight, Math.exp(-(((v - 0.4) / 0.2) ** 2)) * 0.12) };
+    },
+    weights: (p) => faceWeights(p, f),
+    // Streaks follow the combing: across the lip they fan outward from the middle.
+    uv: (u, v) => [u * 9 - u * v * 3, v * 0.35],
+  });
   if (style === 'moustache') return;
-  const depth = style === 'short' ? 0.0075 : 0.016;
-  const hang = style === 'short' ? 0.006 : style === 'forked' ? 0.05 : 0.038;
+  const depth = style === 'short' ? 0.0075 : goatee ? 0.011 : 0.016;
+  const hang = style === 'short' ? 0.006 : style === 'forked' ? 0.05 : goatee ? 0.026 : style === 'braided' ? 0.026 : 0.038;
+  // How far round the jaw the beard reaches (theta from the chin). A goatee only covers the chin
+  // and the lines down past the mouth corners that join it to the moustache.
+  const side = 1.62;
   // The beard covers the jaw from the sideburns to under the chin, leaving the lips clear. Its line
   // across the cheek is ragged, as hair grows, not ruled.
   const topY = (theta: number) => {
@@ -1509,13 +1751,12 @@ export function buildBeard(B: BodyBuckets, head: Head, C: Palette, style: string
     else if (a < 0.55) y = lerp(f.mouthY - 0.0085, f.mouthY + 0.002, smoothstep(0.28, 0.55, a));
     else if (a < 1.1) y = lerp(f.mouthY + 0.002, 0.08, smoothstep(0.55, 1.1, a));
     else y = lerp(0.08, 0.13, smoothstep(1.1, 1.5, a));
-    return y + (Math.sin(theta * 13 + 0.4) * 0.55 + Math.sin(theta * 23 + 1.3) * 0.45) * 0.002 * smoothstep(0.42, 0.7, a);
+    return y + (Math.sin(theta * 13 + 0.4) * 0.5 + Math.sin(theta * 23 + 1.3) * 0.3 + Math.sin(theta * 41 + 2.1) * 0.2) * 0.0035 * smoothstep(0.42, 0.7, a);
   };
-  grid(B.hair, {
-    us: range(-1.62, 1.62, 48),
-    // Close rows at the top, where the shell feathers out.
-    vs: [0, 0.025, 0.06, 0.11, 0.17, ...range(0.25, 1, 9)],
-    at: (theta, t, out) => {
+  // (A goatee's grid runs u -1..1 across it, narrowing from the mouth corners to the chin.)
+  const goateeEdge = (u: number) => (goatee ? smoothstep(1, 0.4, Math.abs(u)) : 1);
+  const beardAt = (u: number, t: number, out: THREE.Vector3): THREE.Vector3 => {
+      const theta = goatee ? u * lerp(0.56, 0.2, smoothstep(0.12, 0.85, t)) : u;
       const phiTop = head.phiAt(theta, topY(theta));
       const phi = lerp(phiTop, Math.PI * 0.93, t);
       head.point(theta, phi, tmp);
@@ -1523,20 +1764,103 @@ export function buildBeard(B: BodyBuckets, head: Head, C: Palette, style: string
       // below it, in tufts along the bottom.
       const a = Math.abs(theta);
       const front = Math.cos(Math.min(a, Math.PI / 2));
-      const th = depth * (0.04 + 0.96 * smoothstep(0, 0.4, t)) * (0.6 + 0.4 * front) * smoothstep(1.62, 1.35, a);
+      const th = depth * (0.04 + 0.96 * smoothstep(0, 0.4, t)) * (0.6 + 0.4 * front) * (goatee ? goateeEdge(u) : smoothstep(1.62, 1.35, a));
       const nrm = new THREE.Vector3(tmp.x, (tmp.y - 0.1) * 0.6, tmp.z).normalize();
       tmp.addScaledVector(nrm, th + lerp(0.0007, 0.0012, smoothstep(0, 0.2, t)));
       const tufts = 1 + (full ? 0.14 : 0.3) * (Math.sin(theta * 19 + 0.7) * 0.6 + Math.sin(theta * 37) * 0.4) * smoothstep(0.75, 1, t);
-      const drop = hang * Math.pow(smoothstep(0.3, 1, t), 1.3) * Math.pow(front, 2) * tufts;
+      // (A goatee comes to a point under the chin.)
+      const drop = hang * Math.pow(smoothstep(0.3, 1, t), 1.3) * (goatee ? (1 - u * u) ** 2 : Math.pow(front, 2)) * tufts;
       tmp.y -= drop;
       tmp.z += drop * 0.35;
       if (style === 'forked') tmp.y -= drop * 0.45 * Math.abs(Math.sin(theta * 6)) * front;
       return hp(tmp.x, tmp.y, tmp.z, out);
-    },
+  };
+  grid(B.hair, {
+    us: goatee ? range(-1, 1, 24) : range(-side, side, 48),
+    // Close rows at the top, where the shell feathers out.
+    vs: [0, 0.025, 0.06, 0.11, 0.17, ...range(0.25, 1, 9)],
+    at: beardAt,
     // Sparser (so the skin shows through) at the cheek line; a lighter band where the light catches.
-    paint: (theta, t) => ({ c: mixCol(mixCol(beardC, C.skin, smoothstep(0.17, 0.0, t) * 0.5), C.hairLight, Math.exp(-(((t - 0.45) / 0.2) ** 2)) * 0.25 * Math.cos(theta)) }),
+    // At the cheek line it fades right into the skin (with the stubble under it), so there is no edge.
+    paint: (theta, t) => ({ c: mixCol(mixCol(beardC, C.skin, Math.max(Math.pow(smoothstep(0.2, 0.0, t), 0.8) * 0.9, goatee ? (1 - goateeEdge(theta)) * 0.95 : 0)), C.hairLight, Math.exp(-(((t - 0.45) / 0.2) ** 2)) * 0.25 * Math.cos(theta)) }),
     weights: (p) => faceWeights(p, f),
     uv: (theta, t) => [theta * 2, t],
+  });
+  if (style !== 'braided') return;
+  // Two plaits worked from the front of the beard at the chin, falling over the chest (lifted clear of
+  // whatever is worn there), each bound near the end with a bronze ring. Below the chin they move
+  // with the body, not the jaw, so a nod doesn't swing them through the clothes.
+  const r0 = 0.0105;
+  for (const s of [-1, 1]) {
+    const S = beardAt(s * 0.16, 0.5, new THREE.Vector3());
+    const pts = [S.clone().add(new THREE.Vector3(0, 0, -0.007))];
+    for (let k = 1; k <= 5; k++) {
+      const y = S.y - k * 0.019;
+      const x = S.x - s * 0.0012 * k;
+      let z = S.z + 0.004 * k;
+      if (under) for (const dx of [-r0, 0, r0]) for (const dy of [-r0, 0, r0]) z = Math.max(z, (under.z(x + dx, y + dy) ?? -Infinity) + r0 + 0.004);
+      pts.push(new THREE.Vector3(x, y, z));
+    }
+    beardBraid(B, C, pts, r0, (p) => {
+      const k = smoothstep(HEAD_Y - 0.035, HEAD_Y - 0.075, p.y);
+      return k > 0 ? [BI.jaw, 1 - k, BI.spine, k] : faceWeights(p, f);
+    });
+  }
+}
+
+/** A small three-strand plait (for beards), bound near its end with a metal ring, the tip a brush. */
+function beardBraid(B: BodyBuckets, C: Palette, pts: THREE.Vector3[], r0: number, weights: (p: THREE.Vector3) => Weights): void {
+  const path = new Path(pts, 30);
+  const endT = 0.84;
+  const lobes = 7;
+  const beardC = mixCol(C.hair, C.hairDark, 0.3);
+  for (let k = 0; k < 3; k++) {
+    const phase = (k * 2 * Math.PI) / 3;
+    const N = 40;
+    const strand = new Path(
+      range(0, endT, N).map((t) => {
+        const u = t / endT;
+        const r = r0 * (1 - u * 0.35) * (0.7 + 0.3 * smoothstep(0, 0.15, u));
+        const phi = 2 * Math.PI * (lobes / 3) * u + phase;
+        return path.frame(t, r * 0.42 * Math.sin(2 * phi), r * 0.62 * Math.cos(phi), new THREE.Vector3()).clone();
+      }),
+      N,
+    );
+    tube(B.hair, strand, {
+      radius: (t) => {
+        const r = r0 * (1 - Math.min(1, t) * 0.35) * 0.6 * (0.7 + 0.3 * smoothstep(0, 0.15, t));
+        return [r * 0.8, r];
+      },
+      paint: (t) => {
+        const over = 0.5 + 0.5 * Math.sin(2 * (2 * Math.PI * (lobes / 3) * t + phase));
+        return { c: over > 0.5 ? mixCol(beardC, C.hairLight, (over - 0.5) * 0.6) : mixCol(C.hairDark, beardC, 0.35 + over * 1.3) };
+      },
+      weights,
+      seg: 6,
+      steps: N,
+      uv: (t, th) => [th + k, t * lobes],
+    });
+  }
+  const tie = path.point(endT);
+  const dir = path.point(1).sub(tie).normalize();
+  const bronze = col('#a8803c');
+  tube(B.metal, new Path([tie.clone().addScaledVector(dir, -0.006), tie.clone().addScaledVector(dir, 0.003)], 4), {
+    radius: () => [r0 * 0.5, r0 * 0.5],
+    paint: (_t, th) => ({ c: shade(bronze, 0.8 + 0.3 * Math.cos(th)) }),
+    weights: (p) => weights(p),
+    seg: 10,
+    steps: 3,
+  });
+  const tuft = new Path([tie, tie.clone().addScaledVector(dir, 0.012), path.point(1)], 6);
+  tube(B.hair, tuft, {
+    radius: (t) => {
+      const r = r0 * (0.35 + 0.3 * Math.sin(Math.min(1, t * 1.3) * Math.PI * 0.6)) * (1 - Math.pow(t, 3) * 0.8) + 0.0006;
+      return [r * 0.8, r];
+    },
+    paint: (t) => ({ c: mixCol(beardC, C.hairLight, t * 0.25) }),
+    weights: (p) => weights(p),
+    seg: 7,
+    steps: 5,
   });
 }
 

@@ -32,14 +32,16 @@ export type Activity =
   | 'confused'
   | 'dress'
   | 'fish'
+  /** Sword drill at a practice dummy: guard, cuts and thrusts, recover. */
+  | 'swordplay'
   /** Under the covers with someone (interactions/woohoo.ts). */
   | 'woohoo';
 
-export type CarryItem = 'bowl' | 'bread' | 'book' | 'pot' | 'lute' | 'rod' | 'lance' | 'cup' | null;
+export type CarryItem = 'bowl' | 'bread' | 'book' | 'pot' | 'lute' | 'rod' | 'lance' | 'cup' | 'sword' | null;
 
 export type Sex = 'male' | 'female';
 
-export type HairStyle = 'short' | 'long' | 'braid' | 'cropped' | 'curly' | 'shoulder' | 'wavy' | 'twin_braids' | 'bun' | 'shaved' | 'bob' | 'ponytail' | 'half_up';
+export type HairStyle = 'short' | 'long' | 'braid' | 'cropped' | 'curly' | 'shoulder' | 'wavy' | 'twin_braids' | 'bun' | 'shaved' | 'bob' | 'ponytail' | 'half_up' | 'temple_braids' | 'crown_braid';
 
 export interface KyndAppearance {
   sex: Sex;
@@ -91,6 +93,8 @@ export interface KyndAppearance {
   noseBridge?: number;
   noseTip?: number;
   cheekFullness?: number;
+  cheekboneHeight?: number;
+  forehead?: number;
   freckles?: boolean;
   scar?: boolean;
 }

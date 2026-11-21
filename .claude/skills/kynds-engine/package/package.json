@@ -1,0 +1,30 @@
+{
+  "name": "kynds-engine",
+  "version": "0.8.0",
+  "description": "The Kynds Engine: a headless life-sim core (navigation, slots, saves, tiers, animation, build tools) and its three.js half (material features with WebGPU node versions, instancing, merging).",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./render": "./src/render/index.ts"
+  },
+  "files": [
+    "src",
+    "API.md",
+    "GUIDE.md",
+    "starter"
+  ],
+  "peerDependencies": {
+    "three": "^0.170.0"
+  },
+  "peerDependenciesMeta": {
+    "three": {
+      "optional": true
+    }
+  },
+  "scripts": {
+    "test": "node --test starter/*.test.ts"
+  },
+  "engines": {
+    "node": ">=22.6"
+  }
+}

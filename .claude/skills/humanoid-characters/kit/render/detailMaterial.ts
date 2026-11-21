@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { detailTexture, type DetailKind } from './textures.ts';
+import { addFeature, bumpNormal, defineFeature, type TNode, type TSL } from '../engine/render/MaterialFeatures.ts';
 
 export interface DetailOptions {
   kind: DetailKind | 'plasterBrick';
@@ -118,24 +119,31 @@ function plasterBrick(): THREE.Texture {
   return t;
 }
 
+export interface DetailParams {
+  tex: THREE.Texture;
+  scale: number;
+  strength: number;
+  bump: number;
+  world: boolean;
+}
+
 /**
- * Patch a standard material with tri-planar detail: the texture is projected along the three axes
- * using position (world or object space) and blended by the surface normal, so boxes, cylinders
- * and lathes all get correctly scaled grain without UV work. It modulates base colour (keeping the
- * palette), roughness, and a small bump.
+ * Tri-planar surface detail (engine M5 material feature `detail`): the texture is projected along
+ * the three axes using position (world or object space) and blended by the surface normal, so
+ * boxes, cylinders and lathes all get correctly scaled grain without UV work. It modulates base
+ * colour (keeping the palette), roughness, and a small bump.
  */
-export function applyDetail(material: THREE.MeshStandardMaterial, opts: DetailOptions): THREE.MeshStandardMaterial {
-  const d = DEFAULTS[opts.kind];
-  const tex = opts.kind === 'plasterBrick' ? plasterBrick() : detailTexture(opts.kind);
-  const world = (opts.space ?? 'world') === 'world';
-  const uniforms = {
-    tDetail: { value: tex },
-    uDScale: { value: opts.scale ?? d.scale },
-    uDStrength: { value: opts.strength ?? d.strength },
-    uDBump: { value: opts.bump ?? d.bump },
-  };
-  material.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, uniforms);
+export const DETAIL = defineFeature<DetailParams>({
+  id: 'detail',
+  key: (p) => (p.world ? 'w' : 'o'),
+  glsl(shader, p) {
+    const world = p.world;
+    Object.assign(shader.uniforms, {
+      tDetail: { value: p.tex },
+      uDScale: { value: p.scale },
+      uDStrength: { value: p.strength },
+      uDBump: { value: p.bump },
+    });
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vDPos;\nvarying vec3 vDNrm;')
       .replace(
@@ -195,8 +203,34 @@ export function applyDetail(material: THREE.MeshStandardMaterial, opts: DetailOp
         `#include <normal_fragment_maps>
         if (uDBump > 0.0) normal = detailBump(-vViewPosition, normal, dLum * uDBump);`,
       );
-  };
-  material.customProgramCacheKey = () => `detail-${world ? 'w' : 'o'}`;
-  material.needsUpdate = true;
+  },
+  // The colour after the vertex and instance colours (the GLSL runs after `color_fragment`).
+  tslDiffuse(p, T) {
+    const s = detailNodes(p, T);
+    return (c) => T.vec4(c.rgb.mul(T.mix(T.vec3(1), s.tex.mul(2), T.float(p.strength))), c.a);
+  },
+  tsl(m, p, T) {
+    const s = detailNodes(p, T);
+    m.roughnessNode = T.clamp(T.materialRoughness.add(T.float(0.5).sub(s.lum).mul(p.strength * 0.5)), 0.05, 1);
+    // The GLSL's own bump (derivatives of the height on screen; three's bumpMap only re-samples textures).
+    if (p.bump > 0) m.normalNode = bumpNormal(T, s.lum.mul(p.bump));
+  },
+});
+
+/** The tri-planar sample and its brightness, as nodes. */
+function detailNodes(p: DetailParams, T: TSL): { tex: TNode; lum: TNode } {
+  const pos = (p.world ? T.positionWorld : T.positionLocal).mul(p.scale);
+  const w0 = T.pow(T.abs((p.world ? T.normalWorld : T.normalLocal).normalize()), T.vec3(4));
+  const w = w0.div(w0.x.add(w0.y).add(w0.z).add(1e-5));
+  const t = p.tex as never;
+  const tex = T.texture(t, pos.zy).rgb.mul(w.x).add(T.texture(t, pos.xz).rgb.mul(w.y)).add(T.texture(t, pos.xy).rgb.mul(w.z));
+  return { tex, lum: T.dot(tex, T.vec3(0.333)) };
+}
+
+/** Give a standard material tri-planar detail (the `detail` feature). */
+export function applyDetail(material: THREE.MeshStandardMaterial, opts: DetailOptions): THREE.MeshStandardMaterial {
+  const d = DEFAULTS[opts.kind];
+  const tex = opts.kind === 'plasterBrick' ? plasterBrick() : detailTexture(opts.kind);
+  addFeature<DetailParams>(material, 'detail', { tex, scale: opts.scale ?? d.scale, strength: opts.strength ?? d.strength, bump: opts.bump ?? d.bump, world: (opts.space ?? 'world') === 'world' });
   return material;
 }

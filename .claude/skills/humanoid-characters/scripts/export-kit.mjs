@@ -24,7 +24,7 @@ if (!fs.existsSync(path.join(src, 'render', 'KyndAvatar.ts'))) {
 const FILES = [
   'render/KyndAvatar.ts', 'render/KyndGarments.ts', 'render/kyndBody.ts', 'render/kyndFace.ts',
   'render/kyndFaceTexture.ts', 'render/kyndMaterials.ts', 'render/kyndGeometry.ts', 'render/kyndHand.ts',
-  'render/kyndAnatomy.ts', 'render/sdfMesh.ts', 'render/kit.ts', 'render/detailMaterial.ts',
+  'render/kyndAnatomy.ts', 'render/sdfMesh.ts', 'render/kit.ts', 'render/detailMaterial.ts', 'engine/render/MaterialFeatures.ts', 'engine/core/Registry.ts', 'engine/anim/ik.ts', 'engine/anim/pose.ts', 'engine/anim/rig.ts',
   'render/textures.ts', 'render/LanceMesh.ts',
   'sim/entities/appearance.ts', 'sim/family/genetics.ts', 'core/Rng.ts',
 ];
@@ -73,7 +73,9 @@ const write = (rel, text) => {
   fs.mkdirSync(path.dirname(path.join(out, rel)), { recursive: true });
   fs.writeFileSync(path.join(out, rel), text);
 };
-for (const f of FILES) write(f, fs.readFileSync(path.join(src, f), 'utf8'));
+// Files the Kynds Engine now holds (docs/ENGINE_PLAN.md, M1): copied from there, to the kit's old paths.
+const MOVED = { 'core/Rng.ts': 'engine/core/Rng.ts', 'core/math.ts': 'engine/core/math.ts', 'render/merge.ts': 'engine/render/merge.ts', 'render/instancing.ts': 'engine/render/instancing.ts' };
+for (const f of FILES) write(f, fs.readFileSync(path.join(src, MOVED[f] ?? f), 'utf8'));
 for (const [f, text] of Object.entries(STUBS)) write(f, text);
 // The two tailored court outfits are Blender meshes (1.4 MB of numbers): left out unless asked for.
 write('render/courtClothesMeshes.ts', withCourt
@@ -82,7 +84,7 @@ write('render/courtClothesMeshes.ts', withCourt
 
 // Every relative import in the kit must land on a file in it.
 const missing = [];
-for (const dir of ['render', 'sim', 'core']) {
+for (const dir of ['render', 'sim', 'core', 'engine']) {
   const walk = (d) => {
     for (const e of fs.readdirSync(d, { withFileTypes: true })) {
       const p = path.join(d, e.name);

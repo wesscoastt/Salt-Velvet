@@ -41,6 +41,10 @@ export interface HeadShape {
   noseBridge: number;
   noseTip: number;
   cheekFullness: number;
+  /** Cheekbones set low … high on the face. */
+  cheekboneHeight: number;
+  /** Forehead sloping back … upright and full. */
+  forehead: number;
 }
 
 export interface FaceLayout {
@@ -84,6 +88,8 @@ export function headShape(look: FullAppearance, stage: LifeStage): HeadShape {
     noseBridge: look.noseBridge,
     noseTip: look.noseTip,
     cheekFullness: look.cheekFullness,
+    cheekboneHeight: look.cheekboneHeight,
+    forehead: look.forehead,
   };
 }
 
@@ -125,7 +131,7 @@ export function faceLayout(look: Pick<FullAppearance, 'eyeSize' | 'eyeSpacing' |
 const MID = { eyeSize: 0.5, eyeSpacing: 0.5, faceWidth: 0.5, faceLength: 0.5, mouthWidth: 0.5, lipFullness: 0.5, nose: 0.5, upperLip: 0.5, mouthHeight: 0.5, noseWidth: 0.5, noseTip: 0.5, chin: 0.5 };
 const MID_SHAPE: HeadShape = {
   jaw: 0.5, nose: 0.5, female: true, child: 0, width: 0.5, length: 0.5, cheeks: 0.5, age: 0, lips: 0.5, eyeShape: 0.5, brow: 0.5,
-  jawAngle: 0.5, chin: 0.5, chinWidth: 0.5, noseWidth: 0.5, noseBridge: 0.5, noseTip: 0.5, cheekFullness: 0.5,
+  jawAngle: 0.5, chin: 0.5, chinWidth: 0.5, noseWidth: 0.5, noseBridge: 0.5, noseTip: 0.5, cheekFullness: 0.5, cheekboneHeight: 0.5, forehead: 0.5,
 };
 /** The canonical face every Kynd's face is warped from (and the face texture is painted on). */
 export const CANON: FaceLayout = faceLayout(MID, MID_SHAPE);
@@ -291,23 +297,30 @@ function nose(x: number, y: number, s: HeadShape, f: FaceLayout): number {
   const t = clamp01((yN - y) / (yN - yT));
   const hump = (0.0014 * Math.max(0, s.nose - 0.45) + 0.0018 * Math.max(0, s.noseBridge - 0.5)) * Math.exp(-(((t - 0.45) / 0.18) ** 2)) * (1 - s.child);
   // The bridge runs up into the tip in one line (a low bridge meeting a big tip makes a ski-jump point).
-  const hD = lerp((0.0028 - s.child * 0.0012) * lerp(0.45, 1.6, s.noseBridge), hT * 0.92, Math.pow(t, 0.8)) + hump;
+  // (It stops a little short of the tip's own height: the lobule stands out as a rounded bulb,
+  // the supratip break, instead of the bridge running straight into a point.)
+  const hD = lerp((0.0028 - s.child * 0.0012) * lerp(0.45, 1.6, s.noseBridge), hT * 0.9, Math.pow(t, 0.8)) + hump * (1 - smoothstep(0.6, 0.95, t));
   const wD = lerp(0.0044, 0.0062, t) * (0.88 + 0.22 * ns) * lerp(0.9, 1.15, s.noseWidth);
   const above = y > yN ? Math.exp(-(((y - yN) / 0.0085) ** 2)) : 1;
-  const below = y < yT + 0.003 ? Math.exp(-(((yT + 0.003 - y) / 0.0045) ** 2)) : 1;
+  // (The bridge gives way to the lobule a few millimetres above the tip: the tip is the lobule's
+  // own rounded dome, not the bridge's line meeting the underside's.)
+  const below = y < yT + 0.004 ? Math.exp(-(((yT + 0.004 - y) / 0.006) ** 2)) : 1;
   const dors = hD * Math.exp(-((x / wD) ** 2)) * above * below;
   // Tip: a rounded lobule, faintly two-domed; the alar wings either side and a little lower,
   // joined to the tip by the lobule's fill so the lower nose reads as one form.
   // The lobule is a rounded dome (a flattened bell, not a cone), so the tip reads soft in profile.
   const wT = (0.0058 + 0.0014 * ns) * wide;
-  const rT = (x / wT) ** 2 + ((y - (yT + 0.0004)) / 0.0084) ** 2;
-  const tip = hT * 0.94 * Math.exp(-Math.pow(rT, 1.45));
+  const rT = (x / wT) ** 2 + ((y - (yT - 0.0016)) / 0.0122) ** 2;
+  // (Faded out under the nose's base, so it never swells the upper lip.)
+  const tip = hT * Math.exp(-rT) * smoothstep(yS - 0.007, yS + 0.002, y);
   const tip2 = hT * 0.8 * g(ax - 0.0023, y - (yT - 0.0004), wT * 0.72, 0.0066);
   const aY = lerp(yT, yS, 0.5);
   const aX = f.alaX * 0.88;
   const ala = hT * 0.36 * g(ax - aX, y - aY, 0.0048, 0.0044);
   // A full underside from the tip back to the lip, so the profile rounds under instead of ending in a point.
-  const fill = hT * (0.7 + s.child * 0.12) * g(x, y - lerp(yT, yS, 0.45), f.alaX * 0.84, 0.0064);
+  // (Held out nearly level from the tip back toward the lip, the columella's line, before it turns
+  // in at the base: a rounded underside, not a straight slope from the tip to the lip.)
+  const fill = hT * (0.72 + s.child * 0.1) * g(x, y - lerp(yT, yS, 0.55), f.alaX * 0.84, 0.006);
   // A soft maximum (p-norm) blends the parts without bulging where they meet.
   let n = Math.pow(dors ** 3 + tip ** 3 + tip2 ** 3 + ala ** 3 + fill ** 3, 1 / 3);
   // The alar groove curves round the outer and upper edge of each wing.
@@ -393,7 +406,8 @@ function relief(x: number, y: number, s: HeadShape, f: FaceLayout): number {
   // Eye sockets round the lids.
   dz -= 0.0048 * g(ax - f.eyeX * 1.02, y - (f.eyeY + 0.001), 0.021, 0.0155);
   // Cheekbones, the soft cheek below (fuller on children), and the hollow under the cheekbone.
-  dz += (0.0012 + s.cheeks * 0.0078) * g(ax - (0.045 + s.width * 0.014), y - (f.eyeY - 0.027), 0.019, 0.0145);
+  const cbY = f.eyeY - 0.027 + (s.cheekboneHeight - 0.5) * 0.016;
+  dz += (0.0012 + s.cheeks * 0.0078) * g(ax - (0.045 + s.width * 0.014), y - cbY, 0.019, 0.0145);
   dz += (0.0024 + s.child * 0.0045) * lerp(0.35, 2.1, s.cheekFullness) * g(ax - 0.037, y - (f.eyeY - 0.044), 0.017, 0.016);
   dz -= grown * (0.0006 + s.cheeks * 0.0018 + s.age * 0.001) * lerp(1.8, 0.2, s.cheekFullness) * g(ax - 0.05, y - (f.mouthY + 0.008), 0.013, 0.014);
   // Muzzle (the tooth arch) and chin.

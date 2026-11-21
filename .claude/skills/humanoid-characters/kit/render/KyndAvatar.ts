@@ -1,14 +1,17 @@
 import * as THREE from 'three';
+import { portShader, type TNode } from '../engine/render/MaterialFeatures.ts';
+import { crouchAngle } from '../engine/anim/ik.ts';
+import { easeFactor, easePose, PoseClip, PoseGraph } from '../engine/anim/pose.ts';
 import type { Activity, CarryItem, KyndAppearance } from '../sim/entities/Kynd.ts';
 import type { Posture } from '../sim/world/types.ts';
 import type { EmotionId } from '../sim/emotion/Emotion.ts';
 import { COLORS, mat } from './kit.ts';
 import type { LifeStage } from '../sim/family/Life.ts';
 import { greyed } from '../sim/family/genetics.ts';
-import { normalizeAppearance, type FullAppearance } from '../sim/entities/appearance.ts';
+import { normalizeAppearance, outfitAt, type FullAppearance } from '../sim/entities/appearance.ts';
 import { Bucket, capsuleR, col, ellipsoid, grid, KIND, mixCol, Path, range, around, shade, tube } from './kyndGeometry.ts';
 import { kyndMaterials, skinMaterial, type FaceDetail } from './kyndMaterials.ts';
-import { ANKLE_Y, BI, BONES, EL_Y, HIP_Y, KNEE_Y, PELVIS_Y, SH_Y, SPINE_Y, LID_LEVELS, WRIST_Y, boneLayout, buildBareFeet, buildBeard, buildHair, buildHands, buildHead, Head, hairCrown, measure, palette, type BodyBuckets, type FaceLayout, type Measure } from './kyndBody.ts';
+import { ANKLE_Y, BI, BONES, EL_Y, HIP_Y, KNEE_Y, PELVIS_Y, SH_Y, SPINE_Y, LID_LEVELS, WRIST_Y, boneLayout, buildBareFeet, buildBeard, buildHair, buildHands, buildHead, FrontProbe, HEAD_Y, Head, hairCrown, measure, palette, type BodyBuckets, type FaceLayout, type Measure, type Palette } from './kyndBody.ts';
 import { buildBareBody, buildHeadwear, buildOutfit, hairCoverFor } from './KyndGarments.ts';
 import { buildLance } from './LanceMesh.ts';
 
@@ -136,7 +139,7 @@ export interface Reach {
   miss: number;
 }
 
-const CARRY_GRIP: Record<NonNullable<CarryItem>, number> = { bowl: 0.5, bread: 0.6, book: 0.35, pot: 0.55, lute: 0.4, rod: 1, lance: 0.9, cup: 0.8 };
+const CARRY_GRIP: Record<NonNullable<CarryItem>, number> = { bowl: 0.5, bread: 0.6, book: 0.35, pot: 0.55, lute: 0.4, rod: 1, lance: 0.9, cup: 0.8, sword: 1 };
 
 function handLayer(p: Pose, activity: Activity, carrying: CarryItem, t: number, seed: number): void {
   const h = HAND_FOR[activity];
@@ -174,7 +177,7 @@ function plantFeet(p: Pose): void {
   const drop = Math.abs(STAND_HIP - p.pelvisY);
   p.pelvisY = STAND_HIP - drop;
   if (drop < 1e-4) return;
-  const a = Math.acos(Math.max(-1, 1 - drop / (2 * THIGH)));
+  const a = crouchAngle(drop, THIGH);
   p.hipL -= a;
   p.hipR -= a;
   p.kneeL += 2 * a;
@@ -436,6 +439,47 @@ function activityLayer(p: Pose, activity: Activity, t: number, posture: Posture)
       p.spine += 0.22;
       p.neck += 0.2;
       break;
+    case 'swordplay': {
+      // A drill at the straw man, in a loop of about seven seconds: from the guard (the blade up
+      // before the face), a high cut down across him, back to the guard, a thrust at the target on
+      // his chest, a cut in from the side, and a breath in the guard before the next round. Each
+      // stroke winds up, strikes fast and recovers slowly; the body turns into the blows, the free
+      // hand out for balance, the knees soft.
+      const T = 7.2;
+      const c = (t % T) / T;
+      type Key = { shRx: number; shRz: number; elR: number; twist: number; lean: number };
+      const guard: Key = { shRx: -0.95, shRz: 0.12, elR: -1.35, twist: -0.12, lean: 0.06 };
+      const high: Key = { shRx: -2.55, shRz: 0.32, elR: -1.55, twist: -0.32, lean: -0.04 };
+      const cutDown: Key = { shRx: -0.55, shRz: -0.12, elR: -0.25, twist: 0.38, lean: 0.24 };
+      const draw: Key = { shRx: -0.7, shRz: 0.15, elR: -1.9, twist: -0.2, lean: 0.02 };
+      const thrust: Key = { shRx: -1.45, shRz: -0.05, elR: -0.08, twist: 0.12, lean: 0.2 };
+      const wind: Key = { shRx: -1.35, shRz: 0.75, elR: -1.25, twist: -0.5, lean: 0.04 };
+      const side: Key = { shRx: -1.25, shRz: -0.45, elR: -0.2, twist: 0.45, lean: 0.14 };
+      // [phase, key]: winds up slowly, strikes in a tenth of a second, recovers.
+      const track: [number, Key][] = [[0, guard], [0.1, guard], [0.2, high], [0.235, cutDown], [0.33, cutDown], [0.42, guard], [0.5, draw], [0.53, thrust], [0.6, thrust], [0.68, wind], [0.715, side], [0.79, side], [0.9, guard], [1, guard]];
+      let i = 0;
+      while (i < track.length - 2 && c > track[i + 1][0]) i++;
+      const [c0, a] = track[i], [c1, b] = track[i + 1];
+      const k = ease((c - c0) / Math.max(1e-6, c1 - c0));
+      const lerpK = (x: number, y: number) => x + (y - x) * k;
+      Object.assign(p, {
+        shRx: lerpK(a.shRx, b.shRx),
+        shRz: lerpK(a.shRz, b.shRz),
+        elR: lerpK(a.elR, b.elR),
+        // The free hand out to the side and a little forward, for balance.
+        shLx: -0.55 + 0.1 * s(t * 1.3), shLz: 0.42, elL: -0.75,
+      });
+      p.spineTwist += lerpK(a.twist, b.twist);
+      p.spine += lerpK(a.lean, b.lean);
+      p.neckTurn -= lerpK(a.twist, b.twist) * 0.6;
+      p.neck += 0.06;
+      // Knees soft, weight forward on the strike.
+      p.kneeL += 0.18;
+      p.kneeR += 0.18 + lerpK(a.lean, b.lean) * 0.4;
+      p.hipL += 0.08 + lerpK(a.lean, b.lean) * 0.5;
+      p.hipR += 0.12;
+      break;
+    }
     case 'fish': {
       // Rod held out over the water in both hands, the tip bobbing; now and then a fresh cast.
       const cycle = (t % 14) / 14;
@@ -563,6 +607,31 @@ export function walkLayer(p: Pose, phase: number, running: boolean, carrying: Ca
     p.elL = -(bend + (running ? 0.2 : 0.38) * Math.max(0, -s));
     p.elR = -(bend + (running ? 0.2 : 0.38) * Math.max(0, s));
   }
+}
+
+/**
+ * On the stairs: each step lifts the foot a tread (the knee comes up high going up, the leg
+ * reaches down going down), the body leans into the climb, and the arms swing less.
+ */
+export function climbLayer(p: Pose, phase: number, dir: 'up' | 'down'): void {
+  const up = dir === 'up';
+  // (Peaking as the leg swings through to the front, where it lands on the next tread.)
+  const liftL = Math.max(0, Math.sin(phase + 0.6)), liftR = Math.max(0, Math.sin(phase + 0.6 + Math.PI));
+  // A tread's rise at the top of each swing: the thigh comes forward and up, the knee folds.
+  const hip = up ? 0.55 : 0.22, knee = up ? 0.95 : 0.35;
+  p.hipL -= hip * liftL;
+  p.hipR -= hip * liftR;
+  p.kneeL += knee * liftL;
+  p.kneeR += knee * liftR;
+  // Going down, the standing knee gives a little as the other foot reaches for the step below.
+  if (!up) {
+    p.kneeL += 0.22 * liftR;
+    p.kneeR += 0.22 * liftL;
+  }
+  p.spine += up ? 0.16 : -0.04;
+  p.neck += up ? -0.08 : 0.12;
+  p.shLx *= 0.6;
+  p.shRx *= 0.6;
 }
 
 /** Personality is visible before the player opens a panel: each idle silhouette has a point of view. */
@@ -780,6 +849,8 @@ export interface AvatarState {
   pregnancy?: number;
   /** Hobbling on a sprained ankle. */
   limp?: boolean;
+  /** On a flight of stairs, going up or down. */
+  climb?: 'up' | 'down';
   /** Asleep under a bed's quilt (bedCovers.ts): what lies under it isn't drawn. */
   tucked?: boolean;
   /** Seated on something with a back (a chair, a settle, a throne): a cloak is thrown back over it. */
@@ -1086,22 +1157,7 @@ function acquireBody(L: FullAppearance, stage: LifeStage): BuiltBody {
     return b;
   }
   const grown = stage === 'adult' || stage === 'elder';
-  const m = measure(L, stage);
-  const head = new Head(L, stage);
-  const C = palette(L);
-  const B: BodyBuckets = { garment: new Bucket(), shoes: new Bucket(), feet: new Bucket(), bare: new Bucket(), hat: new Bucket(), skin: new Bucket(), hair: new Bucket(), eye: new Bucket(), metal: new Bucket() };
-  buildHead(B, head, C, L, stage);
-  buildHair(B, head, C, L, hairCoverFor(L.headwear), m);
-  buildBeard(B, head, C, L.beardStyle);
-  buildHands(B, m, C);
-  buildBareFeet(B, m, C);
-  const noble = L.outfit === 'surcoat' || L.outfit === 'gown' || L.headwear === 'crown' || L.headwear === 'circlet';
-  const fine = noble || L.outfit === 'doublet' || L.outfit === 'cotehardie';
-  const dress = { B, m, C, look: L, head, crown: hairCrown(L.hairStyle), noble, fine };
-  buildOutfit(dress);
-  buildBareBody(dress);
-  // Headwear in its own part: a hood or veil stays on in the bath (the hair under it isn't built).
-  buildHeadwear({ ...dress, B: { ...B, garment: B.hat } });
+  const { B, m, head, C } = buildBodyBuckets(L, stage);
   const geos: Partial<Record<PartName, THREE.BufferGeometry>> = {};
   for (const name of PARTS) if (B[name].vertexCount > 0) geos[name] = B[name].toGeometry(name === 'garment' || name === 'shoes' || name === 'hat', name === 'skin' || name === 'feet' || name === 'bare');
   const lum = C.hair.r * 0.3 + C.hair.g * 0.55 + C.hair.b * 0.15;
@@ -1124,6 +1180,35 @@ function acquireBody(L: FullAppearance, stage: LifeStage): BuiltBody {
   return b;
 }
 
+/**
+ * Every part of a Kynd's body in rest pose, as geometry buckets. The clothes are built before the
+ * hair, so hair that falls over them (braids over the shoulders) can lie on their surface.
+ */
+export function buildBodyBuckets(L: FullAppearance, stage: LifeStage): { B: BodyBuckets; m: Measure; head: Head; C: Palette } {
+  const m = measure(L, stage);
+  const head = new Head(L, stage);
+  const C = palette(L);
+  const B: BodyBuckets = { garment: new Bucket(), shoes: new Bucket(), feet: new Bucket(), bare: new Bucket(), hat: new Bucket(), skin: new Bucket(), hair: new Bucket(), eye: new Bucket(), metal: new Bucket() };
+  buildHead(B, head, C, L, stage);
+  buildHands(B, m, C);
+  buildBareFeet(B, m, C);
+  // A child's clothes are as fine as the grown-up clothing kept for them.
+  const kept = (L as FullAppearance & { wardrobe?: string }).wardrobe ?? L.outfit;
+  const child = kept !== L.outfit;
+  const noble = L.outfit === 'surcoat' || L.outfit === 'gown' || L.headwear === 'crown' || L.headwear === 'circlet' || (child && ['surcoat', 'gown', 'court_dress'].includes(kept));
+  const fine = noble || L.outfit === 'doublet' || L.outfit === 'cotehardie' || (child && ['doublet', 'cotehardie', 'riding_coat'].includes(kept));
+  const dress = { B, m, C, look: L, head, crown: hairCrown(L.hairStyle), noble, fine };
+  buildOutfit(dress);
+  buildBareBody(dress);
+  // The front of the body as dressed, below the jaw: what hair falling forward must lie over.
+  const under = new FrontProbe([B.garment, B.skin, B.bare], HEAD_Y - 0.09);
+  buildHair(B, head, C, L, hairCoverFor(L.headwear), m, under);
+  buildBeard(B, head, C, L.beardStyle, L.beardStyle === 'braided' ? new FrontProbe([B.garment, B.skin], HEAD_Y - 0.056) : undefined);
+  // Headwear in its own part: a hood or veil stays on in the bath (the hair under it isn't built).
+  buildHeadwear({ ...dress, B: { ...B, garment: B.hat } });
+  return { B, m, head, C };
+}
+
 function releaseBody(key: string): void {
   const b = bodyCache.get(key);
   if (b) b.refs = Math.max(0, b.refs - 1);
@@ -1136,10 +1221,68 @@ function releaseBody(key: string): void {
  */
 export function stubbleFor(beard: string, lum: number, sex: string, grown: boolean): number {
   if (beard === 'stubble') return lum < 0.3 ? 1 : 0.6;
-  if (beard === 'short' || beard === 'full' || beard === 'forked') return lum < 0.3 ? 0.85 : 0.5;
+  if (beard === 'short' || beard === 'full' || beard === 'forked' || beard === 'braided') return lum < 0.3 ? 0.85 : 0.5;
+  // A goatee's cheeks are shaved, but a dark beard still shadows them.
+  if (beard === 'goatee') return grown && lum < 0.3 ? 0.4 : 0.15;
   if ((beard === 'none' || beard === 'moustache') && grown && sex === 'male' && lum < 0.3) return lum < 0.12 ? 0.5 : 0.32;
   return 0;
 }
+
+/**
+ * A wave hello (engine M6 authored clip): the right hand comes up beside the head, waves twice
+ * at the wrist and forearm, and settles back. Played over the first moments of a conversation.
+ */
+const WAVE = new PoseClip<Joint>('wave', [
+  { t: 0, pose: {} },
+  { t: 0.35, pose: { shRx: -0.35, shRz: 1.05, elR: -1.85, twistR: -0.2, wristR: 0.1, gripR: 0.05 } },
+  { t: 0.6, pose: { shRz: 1.1, elR: -1.55, wristR: -0.35 } },
+  { t: 0.85, pose: { shRz: 1.05, elR: -1.9, wristR: 0.35 } },
+  { t: 1.1, pose: { shRz: 1.1, elR: -1.55, wristR: -0.35 } },
+  { t: 1.35, pose: { shRz: 1.05, elR: -1.85, wristR: 0.2 } },
+]);
+const WAVE_LENGTH = 1.9;
+
+/** What the body's pose layers see each frame. */
+interface BodyCtx {
+  state: AvatarState;
+  time: number;
+  seed: number;
+  walking: boolean;
+}
+const mounting = (c: BodyCtx) => c.state.mounting !== undefined && c.state.mounting < 1;
+/** Neither getting on a horse, riding nor walking: standing, sitting or lying about. */
+const still = (c: BodyCtx) => !mounting(c) && !c.state.riding && !c.walking;
+const idleStand = (c: BodyCtx) => still(c) && c.state.activity === 'idle' && c.state.posture === 'stand';
+
+/**
+ * The body's pose graph (engine M6): the layers that build a Kynd's target pose, in order. The
+ * hands, head turn, reach to the mouth and the book come after, in `animate`.
+ */
+const BODY_GRAPH = new PoseGraph<Joint, BodyCtx>(basePose)
+  .add({ name: 'mount', when: mounting, apply: (p, c) => mountLayer(p, Math.max(0, c.state.mounting!)) })
+  .add({ name: 'ride', when: (c) => !mounting(c) && !!c.state.riding, apply: (p, c) => rideLayer(p, c.state.moving, c.time) })
+  .add({ name: 'walk', when: (c) => !mounting(c) && !c.state.riding && c.walking, apply: (p, { state: s }) => walkLayer(p, s.distanceWalked * (s.running ? 3.1 : 4.4), s.running, s.carrying, s.limp) })
+  .add({ name: 'climb', when: (c) => !mounting(c) && !c.state.riding && c.walking && !!c.state.climb, apply: (p, { state: s }) => climbLayer(p, s.distanceWalked * 4.4, s.climb!) })
+  .add({ name: 'posture', when: still, apply: (p, c) => postureLayer(p, c.state.posture) })
+  // Each Kynd on their own clock: two at a table don't lift their spoons together (a dance keeps the music's).
+  .add({ name: 'activity', when: still, apply: (p, { state: s, time, seed }) => activityLayer(p, s.activity, s.activity === 'dance' ? time : time + seed, s.posture) })
+  .add({ name: 'life', when: (c) => still(c) && c.state.posture !== 'lie' && c.state.activity !== 'sleep', apply: (p, c) => lifeLayer(p, c.time + c.seed, c.state.posture === 'stand') })
+  .add({ name: 'traits', when: idleStand, apply: (p, c) => traitLayer(p, c.state.traits ?? [], c.time + c.seed) })
+  .add({ name: 'emotion', when: (c) => idleStand(c) && !!c.state.emotion, apply: (p, c) => emotionLayer(p, c.state.emotion!, c.state.emotionIntensity ?? 0, c.time) })
+  // Now and then, a habit: a rub of the neck, a stretch, a look over the shoulder (hands free).
+  .add({
+    name: 'habit',
+    when: (c) => still(c) && c.state.activity === 'idle' && !c.state.carrying && (c.state.posture === 'stand' || c.state.posture === 'sit'),
+    apply: (p, c) => habitLayer(p, c.time + c.seed * 7, c.state.posture === 'sit'),
+  })
+  // Holding something, standing about: the upper arm hangs, the forearm forward, the thing at
+  // the waist (not held out as if offering it to someone).
+  .add({
+    name: 'hold',
+    when: (c) => still(c) && !!c.state.carrying && c.state.activity === 'idle',
+    apply: (p, c) => Object.assign(p, { shRx: -0.14, elR: -1.22, shRz: 0.14, twistR: c.state.carrying === 'pot' || c.state.carrying === 'bowl' ? -0.6 : 0 }),
+  })
+  .add({ name: 'plant feet', when: (c) => still(c) && c.state.posture === 'stand', apply: (p) => plantFeet(p) });
 
 export class KyndAvatar {
   readonly root = new THREE.Group();
@@ -1159,6 +1302,10 @@ export class KyndAvatar {
   private bones: THREE.Bone[] = [];
   /** How far the eyes look past where the head turns (toward whoever they're attending to). */
   private eyeTurn = 0;
+  /** When the current wave hello began (game seconds), or null. */
+  private waveAt: number | null = null;
+  private lastActivity: string | undefined;
+  private talkEnded = -Infinity;
   private lastBeat = -1;
   private doubleBlink = false;
   private rest: THREE.Vector3[] = [];
@@ -1209,7 +1356,10 @@ export class KyndAvatar {
       ...full,
       hair: stage === 'elder' ? greyed(full.hair, 0.8) : full.hair,
       beardStyle: grown ? full.beardStyle : 'none',
-    };
+      outfit: outfitAt(full.outfit, full.sex, stage),
+      // (Kept for the cut of children's clothes: a lord's child is dressed richly.)
+      wardrobe: full.outfit,
+    } as FullAppearance;
     if (stage === 'infant') {
       this.shadow = new THREE.Mesh();
       this.buildInfant(L);
@@ -1493,6 +1643,33 @@ export class KyndAvatar {
     // Held across the body from the chest (see below), neck up toward the left hand.
     lute.position.set(-0.05, 0.13, 0.19);
     lute.rotation.set(-0.25, 0.1, -0.9);
+    // A practice sword: a blunt steel blade with a fuller, a straight cross-guard, a leather-bound
+    // grip and a wheel pommel. In the fist the blade runs on past the thumb.
+    const sword = new THREE.Group();
+    const steel = mat('#b9bec4', { rough: 0.28, metal: 0.85 });
+    const bladeGeo = new THREE.BoxGeometry(0.042, 0.74, 0.007);
+    const blade = new THREE.Mesh(bladeGeo, steel);
+    blade.position.y = 0.45;
+    sword.add(blade);
+    const fuller = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.5, 0.0076), mat('#8e949b', { rough: 0.3, metal: 0.85 }));
+    fuller.position.y = 0.36;
+    sword.add(fuller);
+    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.07, 4), steel);
+    tip.scale.set(0.7, 1, 0.17);
+    tip.rotation.y = Math.PI / 4;
+    tip.position.y = 0.855;
+    sword.add(tip);
+    const cross = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.018, 0.022), mat('#7a7f86', { rough: 0.4, metal: 0.8 }));
+    cross.position.y = 0.075;
+    sword.add(cross);
+    const hilt = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.016, 0.13, 8), mat('#3a2418', { rough: 0.8, detail: 'leather' }));
+    sword.add(hilt);
+    const pommel = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.026, 0.018, 12), mat('#7a7f86', { rough: 0.4, metal: 0.8 }));
+    pommel.rotation.z = Math.PI / 2;
+    pommel.position.y = -0.078;
+    sword.add(pommel);
+    sword.position.set(0.01, -0.035, 0.035);
+    sword.rotation.set(2.25, 0, 0);
     // A fishing rod: a long tapered ash pole with a leather grip and a wooden winder; the line and
     // its cork float hang from the tip (placed each frame, straight down to the water).
     const rod = new THREE.Group();
@@ -1519,7 +1696,7 @@ export class KyndAvatar {
     lance.position.set(-0.19, 0.3, 0.06);
     lance.rotation.set(-0.04, 0.2, 0);
     this.buildOpenBook(mat);
-    for (const [k, o] of [['bowl', bowl], ['bread', bread], ['book', book], ['pot', pot], ['lute', lute], ['rod', rod], ['lance', lance], ['cup', cup]] as const) {
+    for (const [k, o] of [['bowl', bowl], ['bread', bread], ['book', book], ['pot', pot], ['lute', lute], ['rod', rod], ['lance', lance], ['cup', cup], ['sword', sword]] as const) {
       o.visible = false;
       o.traverse((c) => {
         c.castShadow = true;
@@ -1806,30 +1983,8 @@ export class KyndAvatar {
   animate(state: AvatarState, time: number, dt: number): void {
     this.handClock = time;
     if (this.infant) return this.animateInfant(state, time);
-    const target = basePose();
     const walking = state.moving && state.posture === 'stand' && !state.riding;
-    if (state.mounting !== undefined && state.mounting < 1) {
-      mountLayer(target, Math.max(0, state.mounting));
-    } else if (state.riding) {
-      rideLayer(target, state.moving, time);
-    } else if (walking) {
-      walkLayer(target, state.distanceWalked * (state.running ? 3.1 : 4.4), state.running, state.carrying, state.limp);
-    } else {
-      postureLayer(target, state.posture);
-      // Each Kynd on their own clock: two at a table don't lift their spoons together (a dance keeps the music's).
-      activityLayer(target, state.activity, state.activity === 'dance' ? time : time + this.seed, state.posture);
-      if (state.posture !== 'lie' && state.activity !== 'sleep') lifeLayer(target, time + this.seed, state.posture === 'stand');
-      if (state.activity === 'idle' && state.posture === 'stand') {
-        traitLayer(target, state.traits ?? [], time + this.seed);
-        if (state.emotion) emotionLayer(target, state.emotion, state.emotionIntensity ?? 0, time);
-      }
-      // Now and then, a habit: a rub of the neck, a stretch, a look over the shoulder (hands free).
-      if (state.activity === 'idle' && !state.carrying && (state.posture === 'stand' || state.posture === 'sit')) habitLayer(target, time + this.seed * 7, state.posture === 'sit');
-      // Holding something, standing about: the upper arm hangs, the forearm forward, the thing at
-      // the waist (not held out as if offering it to someone).
-      if (state.carrying && state.activity === 'idle') Object.assign(target, { shRx: -0.14, elR: -1.22, shRz: 0.14, twistR: state.carrying === 'pot' || state.carrying === 'bowl' ? -0.6 : 0 });
-      if (state.posture === 'stand') plantFeet(target);
-    }
+    const target = BODY_GRAPH.evaluate({ state, time, seed: this.seed, walking });
     // Attending to someone: the head turns toward them as far as is comfortable (the eyes do the rest),
     // and a listener nods now and then.
     if (state.lookTurn !== undefined && !walking && state.posture !== 'lie') {
@@ -1879,6 +2034,23 @@ export class KyndAvatar {
         target.wristL = target.wristR = 0.14;
       }
     }
+    // Falling into conversation from something else, standing and empty-handed: a wave hello first.
+    // (Not between one remark and the next: only after half a minute without talking.)
+    if (state.activity !== this.lastActivity) {
+      if (this.lastActivity === 'talk') this.talkEnded = time;
+      const fresh = time - this.talkEnded > 30;
+      if (state.activity === 'talk' && this.lastActivity !== undefined && fresh && !walking && state.posture === 'stand' && !state.carrying) this.waveAt = time;
+      this.lastActivity = state.activity;
+    }
+    if (this.waveAt !== null) {
+      const t = time - this.waveAt;
+      if (t < 0 || t > WAVE_LENGTH || state.activity !== 'talk' || walking) this.waveAt = null;
+      else {
+        // In over the first beat, out over the last half second.
+        const w = Math.min(1, t / 0.25) * Math.min(1, (WAVE_LENGTH - t) / 0.5);
+        WAVE.sample(Math.min(t, WAVE.length), target, w);
+      }
+    }
     if (this.stage === 'elder') {
       // A little stoop with the years.
       target.spine += 0.1;
@@ -1891,8 +2063,7 @@ export class KyndAvatar {
       this.lastPosture = state.posture;
     }
     this.postureEase = Math.max(0, this.postureEase - dt);
-    const k = 1 - Math.exp(-dt * (walking ? 22 : this.postureEase > 0 ? 5 : 9));
-    for (const j of JOINTS) this.pose[j] += (target[j] - this.pose[j]) * k;
+    easePose(this.pose, target, JOINTS, easeFactor(walking ? 22 : this.postureEase > 0 ? 5 : 9, dt));
     this.apply(state);
     this.animateFace(state, time, dt);
     // Bathing, and under the covers together: their clothes are off (the covers hide the rest).
@@ -2243,5 +2414,31 @@ function censorMesh(skin: string): THREE.Mesh {
         gl_FragColor = vec4(c, edge * 0.97);
       }`,
   });
+  // The node version (engine M5): the same churning cloud of pixels.
+  portShader(mat, (gpu, T) => {
+    const n = new gpu.MeshBasicNodeMaterial({ transparent: true, depthWrite: false });
+    n.toneMapped = false;
+    const skinC = T.uniform(mat.uniforms.uSkin.value), time = T.uniform(0).onRenderUpdate(() => mat.uniforms.uTime.value);
+    const centre = T.modelViewMatrix.mul(T.vec4(0, 0, 0, 1));
+    const size = T.vec2(T.length(T.modelWorldMatrix.mul(T.vec4(1, 0, 0, 0)).xyz), T.length(T.modelWorldMatrix.mul(T.vec4(0, 1, 0, 0)).xyz));
+    n.vertexNode = T.cameraProjectionMatrix.mul(T.vec4(centre.xy.add(T.positionGeometry.xy.mul(size)), centre.z.add(0.32), centre.w));
+    const h = (p: ReturnType<typeof T.vec2>) => T.fract(T.sin(T.dot(p, T.vec2(127.1, 311.7))).mul(43758.5453));
+    const uv = T.uv();
+    const cell = T.floor(uv.mul(T.vec2(7, 9)));
+    const t = T.floor(time.mul(6));
+    const nz = h(cell.add(t.mul(0.37)));
+    const d = uv.sub(0.5).mul(T.vec2(1, 1.15));
+    const edge = T.float(1).sub(T.smoothstep(0.36, 0.5, T.length(d).add(h(cell.add(3)).sub(0.5).mul(0.08))));
+    let c: TNode = skinC.mul(nz.mul(0.34).add(0.78));
+    c = T.mix(c, T.vec3(0.92, 0.9, 0.86), h(cell.mul(1.7).add(t)).mul(0.12));
+    // (The GLSL writes its colour unconverted.)
+    n.colorNode = T.vec4(T.sRGBTransferEOTF(c), edge.mul(0.97));
+    return n;
+  });
   return new THREE.Mesh(new THREE.PlaneGeometry(0.46, 0.5), mat);
+}
+
+/** The modesty blur's material (for the material parity check). */
+export function censorMaterial(skin: string): THREE.Material {
+  return censorMesh(skin).material as THREE.Material;
 }

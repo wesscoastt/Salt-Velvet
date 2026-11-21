@@ -62,6 +62,7 @@ function tierFromLook(a: KyndAppearance | null): number {
   switch (a?.outfit) {
     case 'gown':
     case 'surcoat':
+    case 'plate':
       return 7;
     case 'doublet':
     case 'cotehardie':
@@ -85,7 +86,7 @@ function headwearFor(r: Rng, sex: Sex, tier: number, grown: boolean): Headwear {
   const roll = r.next();
   if (tier >= 6) return roll < 0.35 ? (sex === 'male' ? 'felt_cap' : 'circlet') : roll < 0.5 && sex === 'female' ? 'veil' : 'none';
   if (sex === 'male') return roll < 0.14 ? 'hood' : roll < 0.24 ? 'felt_cap' : roll < 0.32 ? 'straw_hat' : roll < 0.38 ? 'coif' : 'none';
-  return roll < 0.16 ? 'coif' : roll < 0.28 ? 'veil' : roll < 0.34 ? 'wimple' : roll < 0.4 ? 'straw_hat' : 'none';
+  return roll < 0.16 ? 'coif' : roll < 0.28 ? 'veil' : roll < 0.34 ? 'wimple' : roll < 0.4 ? 'straw_hat' : roll < 0.45 ? 'flower_wreath' : 'none';
 }
 
 const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
@@ -148,10 +149,13 @@ export function inheritAppearance(rng: Rng, sex: Sex, a: KyndAppearance | null, 
   ]));
   // The fine detail: from the parents, or a little either side of the middle (its own stream, so
   // adding it changed no one's other looks).
+  // Bone structure (jaw, chin, cheeks, forehead) varies more widely than the soft features, so
+  // faces differ in their build, not only in their colouring.
+  const BONE_FIELDS = new Set<string>(['jawAngle', 'chin', 'chinWidth', 'cheekFullness', 'cheekboneHeight', 'forehead']);
   const detailRng = sideRng(rng, 57);
   const detail = Object.fromEntries(DETAIL_FIELDS.map((field) => {
     const near = (detailRng.next() + detailRng.next() + detailRng.next()) / 3;
-    return [field, Math.round((pa && pb ? clamp01(pa[field] * 0.5 + pb[field] * 0.5 + (near - 0.5) * 0.3) : clamp01(0.5 + (near - 0.5) * 1.2)) * 100) / 100];
+    return [field, Math.round((pa && pb ? clamp01(pa[field] * 0.5 + pb[field] * 0.5 + (near - 0.5) * 0.3) : clamp01(0.5 + (near - 0.5) * (BONE_FIELDS.has(field) ? 1.6 : 1.2))) * 100) / 100];
   }));
   return {
     ...face,
@@ -190,6 +194,19 @@ export function randomAppearance(rng: Rng, sex: Sex, tier = 2): KyndAppearance {
   let beardStyle: BeardStyle = 'none';
   if (look.beard) beardStyle = r.pick(['short', 'short', 'full', 'full', 'forked', 'moustache', 'stubble'] as const);
   else if (sex === 'male' && r.next() < 0.2) beardStyle = 'stubble';
+  // A goatee for some short beards, braids for some forked ones: chosen from the looks themselves,
+  // not another roll, so no one else's looks change.
+  const lookHash = (salt: number) => { let h = 2166136261 ^ salt; for (const ch of `${look.skin}|${look.height}|${look.build}|${look.hair}`) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); return (h >>> 0) / 4294967296; };
+  // Strangers come from further afield than the old families: some fairer or darker than any here.
+  const tone = lookHash(13);
+  if (look.skin === '#f0c7a4' && tone < 0.4) look.skin = '#f4d2b8';
+  else if (look.skin === '#8a5a3c' && tone < 0.45) look.skin = tone < 0.2 ? '#46291a' : '#5a3824';
+  else if (look.skin === '#9a6a4a' && tone < 0.35) look.skin = '#6e452c';
+  else if (look.skin === '#c48a64' && tone < 0.3) look.skin = '#b8865a';
+  if (beardStyle === 'short' && lookHash(3) < 0.4) beardStyle = 'goatee';
+  else if (beardStyle === 'forked' && lookHash(5) < 0.5) beardStyle = 'braided';
+  if (sex === 'female' && look.hairStyle === 'long' && lookHash(7) < 0.4) look.hairStyle = 'temple_braids';
+  else if (sex === 'female' && look.hairStyle === 'braid' && lookHash(11) < 0.35) look.hairStyle = 'crown_braid';
   const noble = tier >= 6;
   look.beardStyle = beardStyle;
   look.outfit = outfitFor(r, sex, tier);

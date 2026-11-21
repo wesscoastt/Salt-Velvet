@@ -34,6 +34,8 @@ export const KIND = {
   straw: 5,
   embroidery: 6,
   charge: 7,
+  /** Riveted mail: interlocking steel rings (kyndMaterials draws them). */
+  mail: 8,
 } as const;
 
 export class Bucket {
@@ -75,31 +77,69 @@ const _wb = new Int32Array(16);
 const _ww = new Float64Array(16);
 
 /** Add an authored triangle mesh to the same coloured, skinned batching as procedural surfaces. */
+/**
+ * Append an authored (Blender) mesh to a bucket, painted and weighted per vertex. Given `split`, a
+ * signed field over the surface (e.g. "inside the trim" > 0), every triangle that crosses its zero
+ * is cut exactly along it, so a painted edge (a coat's gold trim) runs clean and straight instead of
+ * stepping along the mesh's own edges. Normals come from the uncut mesh, so the cut never shows.
+ */
 export function appendAuthoredMesh(b: Bucket, positions: readonly number[], indices: readonly number[],
   transform: (p: THREE.Vector3) => THREE.Vector3, paint: (p: THREE.Vector3) => Paint,
-  weights: (p: THREE.Vector3) => Weights): void {
+  weights: (p: THREE.Vector3) => Weights, split?: (p: THREE.Vector3) => number, uvAt?: (p: THREE.Vector3) => [number, number]): void {
   const base = b.vertexCount;
-  const points: number[] = [];
-  const p = new THREE.Vector3();
-  for (let i = 0; i < positions.length; i += 3) {
-    transform(p.set(positions[i], positions[i + 1], positions[i + 2]));
-    points.push(p.x, p.y, p.z);
-    b.pos.push(p.x, p.y, p.z);
-    const color = paint(p), secondary = color.c2 ?? color.c;
+  const P: THREE.Vector3[] = [];
+  for (let i = 0; i < positions.length; i += 3) P.push(transform(new THREE.Vector3(positions[i], positions[i + 1], positions[i + 2])));
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(P.flatMap((v) => [v.x, v.y, v.z]), 3));
+  g.setIndex([...indices]);
+  g.computeVertexNormals();
+  const na = g.getAttribute('normal');
+  const N = P.map((_v, i) => new THREE.Vector3(na.getX(i), na.getY(i), na.getZ(i)));
+  g.dispose();
+  // The vertices to write: each with its position, normal and the point its paint is read at.
+  const verts: { p: THREE.Vector3; n: THREE.Vector3; at: THREE.Vector3 }[] = P.map((p, i) => ({ p, n: N[i], at: p }));
+  let tris: number[] = [...indices];
+  if (split) {
+    const f = P.map((p) => split(p));
+    const cuts = new Map<string, number>();
+    // The point where edge i→j crosses zero, as seen from i's side (painted as i is).
+    const cut = (i: number, j: number): number => {
+      const key = `${i}>${j}`;
+      const known = cuts.get(key);
+      if (known !== undefined) return known;
+      const t = f[i] / (f[i] - f[j]);
+      const p = P[i].clone().lerp(P[j], t);
+      const n = N[i].clone().lerp(N[j], t).normalize();
+      verts.push({ p, n, at: p.clone().lerp(P[i], 0.05) });
+      cuts.set(key, verts.length - 1);
+      return verts.length - 1;
+    };
+    const out: number[] = [];
+    for (let k = 0; k < indices.length; k += 3) {
+      let [a, b2, c] = [indices[k], indices[k + 1], indices[k + 2]];
+      const sa = f[a] >= 0, sb = f[b2] >= 0, sc = f[c] >= 0;
+      if (sa === sb && sb === sc) { out.push(a, b2, c); continue; }
+      // Turn the triangle (keeping its winding) so `a` is the vertex alone on its side.
+      if (sb !== sa && sb !== sc) [a, b2, c] = [b2, c, a];
+      else if (sc !== sa && sc !== sb) [a, b2, c] = [c, a, b2];
+      out.push(a, cut(a, b2), cut(a, c));
+      const ab = cut(b2, a), ac = cut(c, a);
+      out.push(ab, b2, c, ab, c, ac);
+    }
+    tris = out;
+  }
+  for (const v of verts) {
+    b.pos.push(v.p.x, v.p.y, v.p.z);
+    b.nrm.push(v.n.x, v.n.y, v.n.z);
+    const color = paint(v.at), secondary = color.c2 ?? color.c;
     b.col.push(color.c.r, color.c.g, color.c.b);
     b.col2.push(secondary.r, secondary.g, secondary.b);
     b.kind.push(color.kind ?? KIND.wool);
-    b.uv.push(Math.atan2(p.x, p.z) / (Math.PI * 2) * 4, p.y * 4);
-    pushWeights(b, weights(p));
+    const uv = uvAt ? uvAt(v.at) : [Math.atan2(v.p.x, v.p.z) / (Math.PI * 2) * 4, v.p.y * 4];
+    b.uv.push(uv[0], uv[1]);
+    pushWeights(b, weights(v.p));
   }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
-  g.setIndex([...indices]);
-  g.computeVertexNormals();
-  const normal = g.getAttribute('normal');
-  for (let i = 0; i < normal.count; i++) b.nrm.push(normal.getX(i), normal.getY(i), normal.getZ(i));
-  for (const i of indices) b.idx.push(base + i);
-  g.dispose();
+  for (const i of tris) b.idx.push(base + i);
 }
 
 /** Keep the four strongest influences and normalise them. */

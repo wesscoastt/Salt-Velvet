@@ -14,7 +14,7 @@ import { clamp01, smoothstep } from './kyndGeometry.ts';
 /** Head-space x at canonical skull angle θ and height y (the face mesh's parameterisation). */
 export type XLookup = (theta: number, y: number) => number;
 
-const SHAPE: HeadShape = { jaw: 0.5, nose: 0.5, female: true, child: 0, width: 0.5, length: 0.5, cheeks: 0.5, age: 0, lips: 0.5, eyeShape: 0.5, brow: 0.5, jawAngle: 0.5, chin: 0.5, chinWidth: 0.5, noseWidth: 0.5, noseBridge: 0.5, noseTip: 0.5, cheekFullness: 0.5 };
+const SHAPE: HeadShape = { jaw: 0.5, nose: 0.5, female: true, child: 0, width: 0.5, length: 0.5, cheeks: 0.5, age: 0, lips: 0.5, eyeShape: 0.5, brow: 0.5, jawAngle: 0.5, chin: 0.5, chinWidth: 0.5, noseWidth: 0.5, noseBridge: 0.5, noseTip: 0.5, cheekFullness: 0.5, cheekboneHeight: 0.5, forehead: 0.5 };
 
 function hash(i: number, j: number, k: number): number {
   let h = Math.imul(i, 374761393) + Math.imul(j, 668265263) + Math.imul(k, 2147483647);
