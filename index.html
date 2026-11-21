@@ -13953,7 +13953,7 @@ var Tex = {
 
     /* ------------------------------------------------ what is this box? */
     _hsl: { h: 0, s: 0, l: 0 },
-    classify: function (surf, color, sx, sy, sz) {
+    classify: function (surf, color, sx, sy, sz, px, pz) {
         var L = this.L, c = color.getHSL(this._hsl), h = c.h, s = c.s, l = c.l;
         var big = Math.max(sx, sz), flat = sy < 0.7 && big > 1.2, tall = sy > 2.4 && big > 2.6;
         var top = L.grime, side = L.grime;
@@ -13971,7 +13971,9 @@ var Tex = {
         if (surf === 'wood') {
             if (flat) { return [L.planks, L.planks]; }
             if (tall && brickish && sy > 6) { return [L.roof, L.brick]; }
-            return [L.planks, (tall && big > 3) ? L.siding : L.planks];
+            /* a house wall: its district's mix, not always clapboard */
+            if (tall && big > 3) { return [L.planks, this._wallFor(h, s, l, sy, px, pz, 'house')]; }
+            return [L.planks, L.planks];
         }
         if (surf === 'metal') {
             if (tall && brickish && big > 14) { return [L.roof, L.brick]; }
@@ -13991,18 +13993,45 @@ var Tex = {
             return [top, L.concrete];
         }
         if (tall) {
-            top = L.roof;
-            if (s < 0.1) { side = l > 0.6 ? L.stucco : L.concrete; }
-            else if ((h < 0.06 || h > 0.95) && l < 0.6) { side = L.brick; }
-            else if (h < 0.12 && l < 0.46) { side = L.brick; }
-            else if (sy < 10 && big < 24) { side = L.siding; }
-            else if (sy > 16 && l > 0.55) { side = L.stone; }
-            else { side = L.stucco; }
-            return [top, side];
+            return [L.roof, this._wallFor(h, s, l, sy, px, pz, 'commercial')];
         }
         if (sy > 1.4 && big > 6) { return [L.concrete, L.concrete]; }    /* walls, fences */
         return [L.grime, L.grime];
     },
+    /* What a wall is made of. The district sets the mix; a hash of where the
+       building stands picks from it, so a street is not one material end to end. */
+    WALLS: {
+        house:      ['siding', 0.45, 'stucco', 0.35, 'brick', 0.2],
+        mansion:    ['stucco', 0.4, 'brick', 0.3, 'siding', 0.2, 'stone', 0.1],
+        rowhouse:   ['brick', 0.55, 'siding', 0.2, 'stucco', 0.25],
+        commercial: ['brick', 0.35, 'stucco', 0.3, 'concrete', 0.2, 'stone', 0.15],
+        civic:      ['stone', 0.4, 'stucco', 0.35, 'brick', 0.25],
+        industrial: ['brick', 0.4, 'tin', 0.35, 'concrete', 0.25],
+        resort:     ['stucco', 0.7, 'concrete', 0.3],
+        stilt:      ['siding', 0.8, 'planks', 0.2],
+        camp:       ['siding', 0.6, 'planks', 0.4]
+    },
+    _hash: function (x, z) {
+        var v = Math.sin(Math.round(x / 3) * 12.9898 + Math.round(z / 3) * 78.233) * 43758.5453;
+        return v - Math.floor(v);
+    },
+    _wallFor: function (h, s, l, sy, px, pz, fallback) {
+        var L = this.L, known = px !== undefined && pz !== undefined;
+        var r = known ? this._hash(px, pz) : 0.5;
+        /* a red or brown wall is mostly brick, whatever the street */
+        if (((h < 0.06 || h > 0.95) && l < 0.6 && s > 0.2) || (h < 0.12 && l < 0.46 && s > 0.15)) {
+            return r < 0.8 ? L.brick : L.stucco;
+        }
+        var d = (known && typeof Districts !== 'undefined' && Districts.at) ? Districts.at(px, pz) : null;
+        var W = this.WALLS[d ? d.style : fallback] || this.WALLS.commercial, acc = 0, i, k = W[0];
+        for (i = 0; i < W.length; i += 2) { acc += W[i + 1]; if (r < acc) { k = W[i]; break; } }
+        /* dressed stone is for something tall; a low one is rendered */
+        if (k === 'stone' && sy < 8) { k = 'stucco'; }
+        /* a pale wall shows its stucco; a dark grey one is bare concrete */
+        if (k === 'stucco' && s < 0.08 && l < 0.4) { k = 'concrete'; }
+        return L[k];
+    },
+
     /* the same guess for a live material that has only a colour */
     patchByColour: function (mat, surf) {
         if (!mat || mat.userData.tex || mat.transparent || mat.map) { return; }
@@ -14148,7 +14177,7 @@ var World = {
                 if (surfIdx[surf] === undefined) { surfIdx[surf] = S.length; S.push(surf); }
                 for (j = 0; j < nv / 3; j++) { g.sf.push(surfIdx[surf]); }
                 /* which texture each face wears: see Tex.classify */
-                var kk = (cc && vc) || typeof Tex === 'undefined' ? [0, 0] : Tex.classify(surf, m.material.color, sz.x, sz.y, sz.z);
+                var kk = (cc && vc) || typeof Tex === 'undefined' ? [0, 0] : Tex.classify(surf, m.material.color, sz.x, sz.y, sz.z, ctr.x, ctr.z);
                 for (j = 0; j < nv; j++) { g.tx.push(Math.abs(n[j * 3 + 1]) > 0.7 ? kk[0] : kk[1]); }
             } else if (cc) { for (j = 0; j < cc.length; j++) { g.col.push(cc[j]); } }
             src.dispose();
@@ -19927,6 +19956,76 @@ var City = {
         return m;
     },
 
+    /* ---- a house's own look, and the yard round it ---------------------- */
+    HOUSE_PAINT: [0xeeeae0, 0xe8dcb8, 0xe6d48a, 0xb8d8b8, 0x9fcfc0, 0xa8c4d8, 0xe8b8b8, 0xa8b890,
+                  0xd8c4a0, 0xe0a088, 0x8a9aa8, 0xf0e6c8],
+    MANSION_PAINT: [0xf2efe6, 0xeee4cc, 0xe8dcc0, 0xf0e2b8, 0xdfe6e0, 0xe8d8d0],
+    HOUSE_ROOF: [0x4a4f56, 0x6a4a3c, 0x3c4a3a, 0x7a3a2c, 0x5a5a58, 0x4c3a30],
+    _hh: function (x, z, k) {
+        var v = Math.sin(x * (12.9898 + k * 3.1) + z * (78.233 + k * 1.7) + k * 41.3) * 43758.5453;
+        return v - Math.floor(v);
+    },
+    _houseLook: function (px, pz, wall, roof, grand) {
+        var P = grand ? this.MANSION_PAINT : this.HOUSE_PAINT;
+        var w = this._hh(px, pz, 1) < 0.3 ? wall : this._mat(P[Math.floor(this._hh(px, pz, 2) * P.length)]);
+        var r = this._hh(px, pz, 3) < 0.35 ? roof.color.getHex() : this.HOUSE_ROOF[Math.floor(this._hh(px, pz, 4) * this.HOUSE_ROOF.length)];
+        return { wall: w, roof: r, trim: grand ? 0xf4f0e6 : 0xeeeae0 };
+    },
+    _houseDetail: function (px, pz, w, h, dp, L, grand) {
+        var m = this._mat.bind(this), o = { solid: false, cast: false };
+        var s = this._hh(px, pz, 5) < 0.5 ? 1 : -1;                  /* which face is the front */
+        var fz = pz + s * dp / 2, trim = m(L.trim);
+        /* the yard padding that keeps houses apart would count the house itself */
+        var pad = this._freePad; this._freePad = 0;
+        /* the porch: a slab, two posts, a little roof, the steps */
+        if (this._free(w * 0.6, 2.2, px, fz + s * 1.4)) {
+            World.addBox(w * 0.6, 0.35, 2.4, px, 0, fz + s * 1.2, m(0xb8b0a0), { solid: false, surface: 'concrete' });
+            World.addBox(0.22, 2.5, 0.22, px - w * 0.28, 0.35, fz + s * 2.25, trim, o);
+            World.addBox(0.22, 2.5, 0.22, px + w * 0.28, 0.35, fz + s * 2.25, trim, o);
+            World.addBox(w * 0.64, 0.18, 2.7, px, 2.85, fz + s * 1.3, m(L.roof), o);
+            World.addBox(1.4, 0.18, 0.5, px, 0, fz + s * 2.65, m(0xb0a898), o);
+        }
+        /* the mailbox at the end of the walk */
+        World.addBox(0.08, 1.1, 0.08, px + w * 0.35, 0, fz + s * 6.2, m(0x3a3a38), o);
+        World.addBox(0.24, 0.24, 0.46, px + w * 0.35, 1.1, fz + s * 6.2, m(this._hh(px, pz, 6) < 0.5 ? 0x2a4a6a : 0x8a8a86), o);
+        /* the chimney, and the aerial that came with the television */
+        var cx = px + w * (this._hh(px, pz, 7) < 0.5 ? 0.28 : -0.28);
+        if (this._hh(px, pz, 8) < 0.7) { World.addBox(1.0, Math.min(w, dp) * 0.3 + 1.4, 1.0, cx, h, pz, m(0x8a4a3a), { solid: false, surface: 'brick' }); }
+        if (!grand && this._hh(px, pz, 9) < 0.55) {
+            var ax = px - (cx - px) * 0.6, ay = h + Math.min(w, dp) * 0.3;
+            World.addBox(0.06, 3.0, 0.06, ax, ay, pz, m(0x6a6a66), o);
+            World.addBox(1.8, 0.04, 0.04, ax, ay + 2.6, pz, m(0x6a6a66), o);
+            World.addBox(1.2, 0.04, 0.04, ax, ay + 2.2, pz, m(0x6a6a66), o);
+            World.addBox(0.04, 0.04, 1.0, ax, ay + 2.9, pz, m(0x6a6a66), o);
+        }
+        /* the front yard: a white picket fence or a hedge, or neither */
+        var yard = this._hh(px, pz, 10), lz = fz + s * 5.0;
+        if (yard < 0.32) {
+            World.addBox(w * 0.36, 0.9, 0.08, px - w * 0.3, 0, lz, m(0xf2efe6), o);
+            World.addBox(w * 0.36, 0.9, 0.08, px + w * 0.3, 0, lz, m(0xf2efe6), o);
+        } else if (yard < 0.6 || grand) {
+            World.addBox(w * 0.34, 1.0, 0.9, px - w * 0.31, 0, lz, m(0x3f5a30), o);
+            World.addBox(w * 0.34, 1.0, 0.9, px + w * 0.31, 0, lz, m(0x3f5a30), o);
+        }
+        if (grand) { this._freePad = pad; return; }
+        /* out back: the clothesline */
+        var bz2 = pz - s * (dp / 2 + 4.5);
+        if (this._hh(px, pz, 11) < 0.3 && this._free(6, 1, px, bz2)) {
+            World.addBox(0.1, 2.1, 0.1, px - 3, 0, bz2, m(0x6a6a66), o);
+            World.addBox(0.1, 2.1, 0.1, px + 3, 0, bz2, m(0x6a6a66), o);
+            World.addBox(6.0, 0.02, 0.02, px, 2.0, bz2, m(0xd8d4c8), o);
+            World.addBox(0.9, 0.8, 0.02, px - 1.2, 1.2, bz2, m(0xf4f0e8), o);
+            World.addBox(0.7, 0.9, 0.02, px + 0.6, 1.1, bz2, m(this._hh(px, pz, 12) < 0.5 ? 0x8aa8c8 : 0xd88a7a), o);
+        }
+        /* a window unit humming in the bedroom, and the cans by the side door */
+        if (this._hh(px, pz, 13) < 0.22) { World.addBox(0.75, 0.5, 0.55, px + w / 2 + 0.25, 1.4, pz + dp * 0.15, m(0x9a9c98), { solid: false, surface: 'metal' }); }
+        if (this._hh(px, pz, 14) < 0.35) {
+            World.addBox(0.55, 0.85, 0.55, px - w / 2 - 0.5, 0, pz - s * dp * 0.2, m(0x6a6e6a), { solid: false, surface: 'metal' });
+            World.addBox(0.55, 0.85, 0.55, px - w / 2 - 0.5, 0, pz - s * dp * 0.2 + 0.7, m(0x6a6e6a), { solid: false, surface: 'metal' });
+        }
+        this._freePad = pad;
+    },
+
     _blockInner: function (d, bx, bz, block, wall, roof, acc) {
         var st = d.style, i, w, h, dp, px, pz, run, lw;
         var S = this.SHARED;
@@ -20021,8 +20120,10 @@ var City = {
                 h = this._rand(d.hmin, d.hmax);
                 px = bx + this._rand(-block * 0.32, block * 0.32);
                 pz = bz + this._rand(-block * 0.32, block * 0.32);
-                if (!this._bxw(w, h, dp, px, 0, pz, wall, { surface: this._surf })) { continue; }
-                this._gable(px, h, pz, w * 1.08, dp * 1.08, Math.min(w, dp) * 0.3, roof.color.getHex());
+                var hl = this._houseLook(px, pz, wall, roof, false);
+                if (!this._bxw(w, h, dp, px, 0, pz, hl.wall, { surface: this._surf })) { continue; }
+                this._gable(px, h, pz, w * 1.08, dp * 1.08, Math.min(w, dp) * 0.3, hl.roof);
+                this._houseDetail(px, pz, w, h, dp, hl, false);
             }
 
         } else if (st === 'mansion') {
@@ -20032,8 +20133,10 @@ var City = {
                 h = this._rand(d.hmin, d.hmax);
                 px = bx + this._rand(-block * 0.24, block * 0.24);
                 pz = bz + this._rand(-block * 0.24, block * 0.24);
-                if (!this._bxw(w, h, dp, px, 0, pz, wall, { surface: this._surf })) { continue; }
-                this._gable(px, h, pz, w * 1.1, dp * 1.1, Math.min(w, dp) * 0.26, roof.color.getHex());
+                var ml = this._houseLook(px, pz, wall, roof, true);
+                if (!this._bxw(w, h, dp, px, 0, pz, ml.wall, { surface: this._surf })) { continue; }
+                this._gable(px, h, pz, w * 1.1, dp * 1.1, Math.min(w, dp) * 0.26, ml.roof);
+                this._houseDetail(px, pz, w, h, dp, ml, true);
                 this._bx(0.9, Math.min(w, dp) * 0.26 + 1.2, 0.9, px + w * 0.32, h, pz,
                          this._mat(0x6b4a3c), { solid: false });
                 this._bx(w * 1.16, 0.6, 2.6, px, h * 0.34, pz + dp * 0.56,
