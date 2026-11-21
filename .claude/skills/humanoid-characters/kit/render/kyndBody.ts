@@ -1405,8 +1405,15 @@ export function buildHair(B: BodyBuckets, head: Head, C: Palette, look: FullAppe
   if ((style === 'long' || style === 'wavy' || style === 'shoulder' || style === 'bob' || style === 'half_up') && !tuck) {
     const len = style === 'bob' ? 0.005 : style === 'shoulder' ? -0.07 : female ? -0.36 : -0.3;
     const span = style === 'shoulder' ? 2.1 : 2.2;
-    const us = range(-span, span, 44);
+    const us = range(-span, span, 96);
     const clump = (u: number) => Math.pow(Math.sin(u * 7.5) * 0.5 + 0.5, 1.5);
+    // Strand clumps down the fall: shallow ridges that catch the light, each clump its own shade
+    // (a smooth sheet read as one flat dark panel below the combed crown).
+    const ridge = (u: number) => Math.pow(Math.sin(u * 23 + Math.sin(u * 6.1) * 1.4) * 0.5 + 0.5, 1.6);
+    const tone = (u: number) => {
+      const h = Math.sin(Math.floor(u * 9 + 50) * 91.7) * 43758.5453;
+      return h - Math.floor(h);
+    };
     const wave = style === 'wavy' || style === 'half_up' ? 1 : 0;
     const endY = (u: number) => {
       const side = smoothstep(1.95, 1.2, Math.abs(u)); // sides are shorter
@@ -1434,6 +1441,7 @@ export function buildHair(B: BodyBuckets, head: Head, C: Palette, look: FullAppe
       const drawn = style === 'half_up' ? smoothstep(0.08, 0.5, t) : 1;
       const vol = (crown * 1.2 + 0.005 * clump(u) + flare + flip) * drawn;
       let r = rTop + (inner ? vol * 0.3 : vol) * (1 - smoothstep(0.82, 1, t) * 0.6);
+      if (!inner) r += 0.0026 * ridge(u) * smoothstep(0.12, 0.4, t) * (1 - smoothstep(0.9, 1, t) * 0.5);
       // Feather the hanging sheet into the actual scalp surface. A fixed-radius
       // start left a square ledge beside the temples, especially under hats.
       const join = smoothstep(0, style === 'half_up' ? 0.45 : 0.2, t);
@@ -1473,7 +1481,10 @@ export function buildHair(B: BodyBuckets, head: Head, C: Palette, look: FullAppe
       paint: (i, t) => {
         const l = loop[Math.round(i)];
         if (l.inner) return { c: shade(C.hairDark, 0.8) };
-        return { c: mixCol(C.hairDark, C.hair, lerp(0.98, 0.65 + clump(l.u) * 0.35, smoothstep(0, 0.4, t))) };
+        const lit = 0.55 + clump(l.u) * 0.25 + tone(l.u) * 0.2;
+        const base = mixCol(C.hairDark, C.hair, lerp(0.98, lit, smoothstep(0, 0.4, t)));
+        // A soft sheen on the ridges through the middle of the fall, none at the roots or ends.
+        return { c: mixCol(base, C.hairLight, ridge(l.u) * 0.22 * smoothstep(0.2, 0.45, t) * smoothstep(0.95, 0.6, t)) };
       },
       weights: (p) => neckAt(p),
       uv: (i, t) => [loop[Math.round(i)].u * 3, t * 3],
