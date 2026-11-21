@@ -2039,8 +2039,10 @@ export function buildHeadwear(d: Dress): void {
     const fa = ((Math.atan2(dx, dz) / (Math.PI * 2)) * ANG + ANG) % ANG, b0 = Math.floor(fa), wa = fa - b0;
     const ringR = (r: number[]) => lerp(r[b0 % ANG], r[(b0 + 1) % ANG], wa);
     const hr = lerp(ringR(lo.r), ringR(hi.r), wy);
-    // (A bun or a tail gathered at the back stands well off the scalp: the band passes under it.)
-    const R = Math.max(skinR, gathered ? Math.min(hr, skinR + 0.026) : hr) + lift;
+    // (A bun or a tail gathered at the back stands well off the scalp: the band passes under it.
+    // On curls it nestles a little into them rather than riding on the tops of the ringlets.)
+    const nestle = look.hairStyle === 'curly' ? 0.004 : 0;
+    const R = Math.max(skinR, gathered ? Math.min(hr, skinR + 0.026) : hr - nestle) + lift;
     return hp((dx / skinR) * R, out.y, zc + (dz / skinR) * R, out);
   };
   if (hw === 'circlet' || hw === 'crown') {

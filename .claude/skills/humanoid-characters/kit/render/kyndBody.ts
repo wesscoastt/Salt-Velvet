@@ -1300,7 +1300,8 @@ export function buildHair(B: BodyBuckets, head: Head, C: Palette, look: FullAppe
   // the hairline to the tie on pulled-back hair, out from the crown otherwise), each a shade of its
   // own, sunk a little into the cap so they read as relief rather than a smooth shell; at the nape
   // and round the ears their tips run on a little past the hairline, ragged.
-  if (style !== 'shaved' && !coveredCrown) {
+  // (Curls get ringlets instead, below: straight combed locks over a curly head read as straw.)
+  if (style !== 'shaved' && style !== 'curly' && !coveredCrown) {
     const rnd = (k: number) => {
       const v = Math.sin(k * 127.1 + 311.7) * 43758.5453;
       return v - Math.floor(v);
@@ -1377,6 +1378,42 @@ export function buildHair(B: BodyBuckets, head: Head, C: Palette, look: FullAppe
     }
   }
   if (style === 'curly' && !coveredCrown) {
+    // Ringlets all over: little coils lying on the scalp, each rising and dipping as it turns so
+    // it reads as a curl (not a straight streak), a shade of its own.
+    const rnd = (k: number) => {
+      const v = Math.sin(k * 127.1 + 311.7) * 43758.5453;
+      return v - Math.floor(v);
+    };
+    const RINGLETS = 140, FRINGE = 14;
+    for (let i = 0; i < RINGLETS + FRINGE; i++) {
+      // Spread by the golden angle, from the crown down to (and just past) the hairline; then a
+      // row of small curls along the front hairline, framing the face.
+      const fringe = i >= RINGLETS;
+      const th0 = fringe ? lerp(-0.95, 0.95, (i - RINGLETS) / (FRINGE - 1)) : -Math.PI + ((i * 2.39996) % (Math.PI * 2));
+      const t0 = fringe ? 0.95 + rnd(i) * 0.05 : 0.12 + Math.sqrt((i + 0.5) / RINGLETS) * 0.86 + (rnd(i) - 0.5) * 0.04;
+      const r = 0.006 + rnd(i + 3) * 0.004;
+      const turns = 1.4 + rnd(i + 5) * 0.5;
+      const spin = rnd(i + 7) * Math.PI * 2;
+      const pts: THREE.Vector3[] = [];
+      const N = 14;
+      for (let k = 0; k <= N; k++) {
+        const u = k / N, phi = spin + u * turns * Math.PI * 2, rr = r * (1 - u * 0.35);
+        const th = th0 + (Math.cos(phi) * rr) / 0.085;
+        const t = Math.min(1.02, t0 + (Math.sin(phi) * rr) * 5 + u * 0.03);
+        // (Set into the hair's surface: the coils' tops emerge from it rather than sit on it.)
+        const lift = thick(th, Math.min(t, 1)) * 0.74 + 0.0016 + Math.sin(phi) * 0.0024 + 0.0012;
+        const p = head.shell(th, pe(th) * t, lift, new THREE.Vector3());
+        pts.push(hp(p.x, p.y, p.z));
+      }
+      const tone = mixCol(mixCol(C.hairDark, C.hair, 0.5 + rnd(i + 11) * 0.45), C.hairLight, rnd(i + 13) > 0.7 ? 0.22 : 0);
+      tube(B.hair, new Path(pts, 24), {
+        radius: (t) => [0.0026 * capsuleR(t, 0.12, 0.25), 0.0026 * capsuleR(t, 0.12, 0.25)],
+        paint: (t) => ({ c: mixCol(tone, C.hairLight, Math.max(0, Math.sin(t * Math.PI * 2 * turns)) * 0.12) }),
+        weights: () => [BI.head, 1],
+        seg: 5,
+        steps: 16,
+      });
+    }
     // Shallow swept ribbons follow the skull instead of disconnected spherical bubbles.
     for (let i = 0; i < 18; i++) {
       const th = -Math.PI + (i + 0.5) * Math.PI * 2 / 18;
