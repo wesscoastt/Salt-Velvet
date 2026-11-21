@@ -1463,7 +1463,7 @@ function shirtCollar(d: Dress, shell: Shell, y: number): void {
  * no dark gap between the neck and their clothes. Its foot moves with the garment, its top with
  * the neck, so a Kynd can look down without the neck pushing through it.
  */
-function neckFacing(d: Dress, shell: Shell, y: number, paint: Paint): void {
+function neckFacing(d: Dress, shell: Shell, y: number, paint: Paint, open?: { halfAngle: number; paint: Paint }): void {
   const y0 = y - 0.004, y1 = y + 0.02;
   const vs = [y0, ...range(y0, y1, 6).slice(1), y1 - 0.016];
   grid(d.B.garment, {
@@ -1482,7 +1482,8 @@ function neckFacing(d: Dress, shell: Shell, y: number, paint: Paint): void {
       const r = lerp(r0, neckRadius(d.head.s, yy) + 0.0028 + (yy - y0) * 0.04, t) - (inner ? 0.003 : 0) + Math.sin(t * Math.PI) * 0.002;
       return out.set(Math.sin(theta) * r, yy, lerp(Math.cos(theta) * r, Math.cos(theta) * r * 1.02 + neckZ(yy), t));
     },
-    paint: () => paint,
+    // (An open neckline — a smock's V — shows skin where the facing would close it.)
+    paint: (theta) => (open && Math.abs(Math.atan2(Math.sin(theta), Math.cos(theta))) < open.halfAngle ? open.paint : paint),
     weights: (p) => neckWeights(p, y0, y1),
     uv: (theta, i) => [((theta + Math.PI) / (Math.PI * 2)) * 10, Math.min(1, Math.round(i) / (vs.length - 2))],
   });
@@ -1552,8 +1553,10 @@ function smockOutfit(d: Dress): void {
   shellMesh(d, torso, 1.55, 0.93, { n: 32, step: 0.04, paint: (th, y) => (vIn(th, y) ? { c: shade(C.skin, 0.95), kind } : { c: C.tunic, kind }), lining: shade(C.tunic, 0.6) });
   shellMesh(d, skirt, 1.0, 0.53, { n: 44, step: 0.05, skirt: true, paint: () => ({ c: C.tunic, kind }), lining: shade(C.tunic, 0.6) });
   lacing(d, torso, 1.42, 1.5, 0.014, C.trim, 0.003, false);
-  ring(d, torso, { y0: 1.525, y1: 1.545, lift: 0.004, paint: { c: shade(C.tunic, 0.85), kind }, n: 32, weights: (p) => trunkWeights(p, m, { belly: false }) });
-  neckFacing(d, torso, 1.554, { c: shade(C.tunic, 0.85), kind });
+  // One hemmed edge round the neck and down both sides of the V. (A band right round the neck
+  // closed the V off at the top, leaving the open chest as a pale patch below it.)
+  neckTrim(d, torso, (th, y) => vIn(th, y) || y > 1.545, 1.556, 1.38, { c: shade(C.tunic, 0.85), kind });
+  neckFacing(d, torso, 1.554, { c: shade(C.tunic, 0.85), kind }, { halfAngle: 0.3, paint: { c: shade(C.skin, 0.95), kind } });
   for (const s of [1, -1] as const) sleeve(d, s, { type: 'rolled', c: C.tunic, kind, cuff: null });
   buildForearms(d.B, m, C, EL_Y - 0.03);
   belt(d, torso, 0.99, { h: 0.02, c: C.trim, kind: KIND.straw, buckle: 'knot', pouch: false, hang: 0.2, lift: 0.006 });
