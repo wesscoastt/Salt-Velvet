@@ -1692,7 +1692,9 @@ function buildMouth(B: BodyBuckets, head: Head, lipC: THREE.Color): void {
 /** The neck's radius at a height (it's a touch deeper front to back: `* 1.02` on z), for collars to fit. */
 export function neckRadius(s: { female: boolean; child: number }, y: number): number {
   const t = (y - 1.43) / 0.23;
-  return (s.female ? 0.047 : 0.056) * (1 - s.child * 0.1) * (1.1 - Math.sin(t * Math.PI) * 0.14 - smoothstep(0.45, 0.85, t) * 0.05);
+  // (Real proportions: a neck nearly as wide as the jaw behind it, barely waisted. A thinner one
+  // read as a long, frail stalk in close-ups.)
+  return (s.female ? 0.052 : 0.062) * (1 - s.child * 0.12) * (1.1 - Math.sin(t * Math.PI) * 0.1 - smoothstep(0.45, 0.85, t) * 0.05);
 }
 
 /** Where the neck's axis sits front to back at a height (behind the body's centre line). */
