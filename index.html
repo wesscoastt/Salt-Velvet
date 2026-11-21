@@ -13232,7 +13232,7 @@ var Districts = {
             x: -1240, z: -230, w: 520, d: 340,
             style: 'mansion', hmin: 8, hmax: 13,
             palette: { wall: 0xe6dccb, roofIdx: 0, accentIdx: 0 },
-            heroes: []
+            heroes: ['Bayou Shore Country Club'], built: true
         }
     ],
 
@@ -19206,7 +19206,9 @@ var City = {
         /* mainland: the drive-in lot, the refinery's stacks, the plaza */
         [-1140, -1770, 80, 110], [-1318, -1925, 100, 80], [-1340, -1620, 44, 44],
         /* mid-island: Fort Crockett's batteries, barracks and parade ground */
-        [-745, 290, 160, 110]
+        [-745, 290, 160, 110],
+        /* the country club inside Bayou Shore Drive, and 61st Street's motor court and burger stand */
+        [-1225, -215, 400, 300], [-832, 85, 64, 170]
     ],
 
     /* ----------------------------------------------------------------------
@@ -27553,13 +27555,120 @@ var Landmarks = {
     /* ================================================================ BUILD */
     build: function () {
         var names = ['_pleasurePier', '_flagship', '_seawallStrip', '_beachSide', '_gulfQueen', '_downtown', '_trapani',
-                     '_waterfront', '_government', '_mainland', '_hospital', '_galveston', '_renames', '_hotelSigns', '_cadiz', '_fishCamps'], i;
+                     '_waterfront', '_government', '_mainland', '_hospital', '_galveston', '_renames', '_hotelSigns', '_cadiz', '_fishCamps', '_midIsland'], i;
         for (i = 0; i < names.length; i++) {
             try { this[names[i]](); } catch (e) { if (window.console) { console.warn('landmarks ' + names[i], e); } }
         }
         this._makeBulbs();
         this._buoys();
     },
+    /* ---- mid-island: Bayou Shore, Fort Crockett's guns, 61st Street ---------- */
+    _midIsland: function () {
+        var self = this, k, i;
+        /* -- the Bayou Shore Country Club, inside the drive -- */
+        this.deco(390, 0.03, 290, -1225, 0.01, -215, 0x5c8a3c);
+        var FW = [[-1300, -270, 0.5, 170], [-1150, -250, -0.35, 150], [-1330, -150, 1.2, 130], [-1110, -160, 0.9, 110]];
+        for (k = 0; k < FW.length; k++) {
+            this.box(26, 0.02, FW[k][3], FW[k][0], 0.04, FW[k][1], 0x72a44a, { solid: false, cast: false, rotY: FW[k][2], surface: 'grass' });
+            var gx = FW[k][0] + Math.sin(FW[k][2]) * FW[k][3] * 0.5, gz = FW[k][1] + Math.cos(FW[k][2]) * FW[k][3] * 0.5;
+            this.cyl(9, 0.05, gx, 0.05, gz, 0x8cc860, 20, 'grass', false);
+            this.deco(0.06, 2.6, 0.06, gx + 2, 0.1, gz, 0xe8e4da);
+            this.deco(0.02, 0.6, 0.9, gx + 2, 2.1, gz + 0.45, 0xc8302a);
+            this.cyl(4.5, 0.04, gx - 10, 0.05, gz + 6, 0xd8c9a0, 14, 'sand', false);
+        }
+        this.cyl(18, 0.04, -1225, 0.05, -215, 0x2e5a5a, 24, 'water', false);
+        this.cyl(5, 0.04, -1190, 0.05, -300, 0xd8c9a0, 14, 'sand', false);
+        /* the clubhouse, facing Stewart Road, with its portico and car park */
+        this.box(36, 8, 14, -1225, 0, -112, 0xf0ece2, { surface: 'plaster' });
+        City._winJob(36, 8, 14, -1225, 0, -112);
+        City._gable(-1225, 8, -112, 38.4, 16, 3.2, 0x8a3a2c);
+        for (i = 0; i < 6; i++) { this.cyl(0.42, 6.6, -1240 + i * 6, 0, -102.6, 0xf4f0e6, 10, 'plaster'); }
+        this.deco(34, 0.7, 4, -1225, 6.6, -102.8, 0xf4f0e6);
+        this.deco(42, 0.02, 16, -1225, 0.03, -80, 0x4a4b4e);
+        this.sign(['BAYOU SHORE', 'COUNTRY CLUB \u00b7 MEMBERS ONLY'], { x: -1196, y: 2.4, z: -66, yaw: 0, w: 5.2, h: 1.3, fg: '#f2e6b8', fg2: '#9fe8b0', bg: '#1a2a1e', day: 0.6 });
+        this.deco(0.2, 2.4, 0.2, -1198.4, 0, -66.3, 0x3a3a38); this.deco(0.2, 2.4, 0.2, -1193.6, 0, -66.3, 0x3a3a38);
+        this.poi(-1225, -112, 'star', 'BAYOU SHORE COUNTRY CLUB');
+        /* -- the estates: on the bay side with docks, and two on the 61st Street side -- */
+        var PAINT = City.MANSION_PAINT, ROOF = City.HOUSE_ROOF;
+        var estate = function (x, z, fx, fz, dock) {
+            var along = fx !== 0, w = along ? 15 : 22, d = along ? 22 : 15, h = 8.5;
+            var paint = PAINT[Math.floor(City._hh(x, z, 31) * PAINT.length)], roof = ROOF[Math.floor(City._hh(x, z, 32) * ROOF.length)];
+            self.deco(40, 0.02, 40, x, 0.015, z, 0x5f8f40);
+            self.box(w, h, d, x, 0, z, paint, { surface: 'plaster' });
+            City._winJob(w, h, d, x, 0, z);
+            City._gable(x, h, z, w * 1.1, d * 1.1, 3.6, roof);
+            /* the portico on the front, toward the drive */
+            var px = x + fx * ((along ? w : d) / 2 + 1.6), pz = z + fz * ((along ? w : d) / 2 + 1.6), c;
+            for (c = -1; c <= 1; c += 2) {
+                self.cyl(0.36, 6, px + (along ? 0 : c * 4.5), 0, pz + (along ? c * 4.5 : 0), 0xf4f0e6, 10, 'plaster');
+            }
+            self.deco(along ? 3.6 : 11, 0.5, along ? 11 : 3.6, px, 6, pz, 0xf4f0e6);
+            City._palm(px + (along ? fx * 6 : 8), pz + (along ? 8 : fz * 6));
+            City._palm(px + (along ? fx * 6 : -8), pz + (along ? -8 : fz * 6));
+            if (dock) {
+                /* down the lawn to the water, and out over it */
+                var cz = z - d / 2, n = 0;
+                while (!Water.isWater(x, cz) && n++ < 40) { cz -= 2; }
+                if (n < 40) {
+                    self.deck(x - 1.5, x + 1.5, cz - 22, cz + 4, 0x8a6a4a);
+                    self.deco(5, 2.6, 4, x + 3.2, 0, cz - 20, 0xe8e2d2);
+                }
+            }
+        };
+        [[-1070, -376], [-1130, -413], [-1190, -418], [-1250, -420], [-1310, -420], [-1370, -404], [-1420, -386]].forEach(function (p) { estate(p[0], p[1], 0, 1, true); });
+        estate(-950, -150, -1, 0, false);
+        estate(-950, -240, -1, 0, false);
+        /* -- Fort Crockett: the guns on the batteries, laid on the Gulf -- */
+        var gun = function (x, z) {
+            var g = new THREE.CylinderGeometry(0.28, 0.38, 9, 12);
+            g.translate(0, 4.5, 0);
+            City._staticMesh(g, self._m(0x4a4e4c), x, 9.0, z, 1, 1, 1, Math.PI / 2 - 0.12, 0, 0, 'metal', true);
+            self.deco(1.6, 1.5, 2.2, x, 8.3, z - 0.6, 0x4a4e4c);
+            self.deco(3.4, 1.9, 0.25, x, 8.0, z + 0.9, 0x5a5e5a);
+            self.cyl(4.2, 0.4, x, 8.5 - 3.5, z, 0x9a958a, 18, 'concrete', false);
+        };
+        for (k = 0; k < 2; k++) { gun(-785 + k * 80 - 12, 326); gun(-785 + k * 80 + 12, 326); }
+        this.poi(-745, 290, 'gov', 'FORT CROCKETT');
+        /* -- 61st Street: the Last Resort Motor Court -- */
+        this.bldg(10, 4.2, 9, -846, 20, 0xe8d8b0, 0xb02a24, 0, 'plaster');
+        for (i = 0; i < 2; i++) {
+            var wx = -856 + i * 34;
+            this.box(10, 3.6, 66, wx < -840 ? -854 : -812, 0, 72, 0xe8d8b0, { surface: 'plaster' });
+            City._gable(wx < -840 ? -854 : -812, 3.6, 72, 11, 67, 1.8, 0x7a3a2c);
+            for (k = 0; k < 9; k++) {
+                this.deco(0.12, 2.2, 1.1, (wx < -840 ? -854 + 5.06 : -812 - 5.06), 0, 44 + k * 7, 0x3a6a8a);
+                this.deco(0.12, 0.9, 1.4, (wx < -840 ? -854 + 5.06 : -812 - 5.06), 1.3, 47 + k * 7, 0x2a3a44);
+            }
+        }
+        this.deco(26, 0.02, 60, -833, 0.02, 75, 0x4a4b4e);
+        this.deco(0.4, 9, 0.4, -866, 0, 30, 0x3a3a38);
+        this.sign(['THE LAST RESORT', 'MOTOR COURT \u00b7 VACANCY'], { x: -866, y: 9.2, z: 30, yaw: -Math.PI / 2, w: 7, h: 1.8, fg: '#ff4a6a', fg2: '#7affd8', bg: '#14141a' });
+        this.poi(-846, 20, 'star', 'THE LAST RESORT MOTOR COURT');
+        /* -- Big Tex Burgers, under the neon cowboy -- */
+        this.box(12, 4, 8, -840, 0, 150, 0xf2ead8, { surface: 'plaster' });
+        this.deco(16, 0.4, 12, -840, 4.2, 150, 0xc8302a);
+        for (k = -1; k <= 1; k += 2) { this.deco(0.2, 4.2, 0.2, -848 + (k + 1) * 8, 0, 155.6, 0xd8d4c8); }
+        this.deco(10, 2.2, 0.1, -840, 0.9, 154.05, 0x3d5561);
+        this.deco(0.5, 12, 0.5, -866, 0, 150, 0x3a3a38);
+        this.sign(['BIG TEX', 'BURGERS 15\u00a2 \u00b7 SHAKES'], {
+            x: -866, y: 12.4, z: 150, yaw: -Math.PI / 2, w: 8, h: 2.2, fg: '#ffd24a', fg2: '#ff6a2a', bg: '#121014',
+            draw: function (g, W, H) {
+                /* the cowboy, a ten-gallon hat and a lasso, at both ends */
+                var ends = [52, W - 52], e;
+                g.save(); g.strokeStyle = '#6affd2'; g.shadowColor = '#6affd2'; g.shadowBlur = 14; g.lineWidth = 5;
+                for (e = 0; e < 2; e++) {
+                    var cx = ends[e];
+                    g.beginPath(); g.ellipse(cx, 50, 34, 8, 0, 0, Math.PI * 2); g.stroke();
+                    g.beginPath(); g.moveTo(cx - 16, 48); g.quadraticCurveTo(cx - 14, 18, cx, 22); g.quadraticCurveTo(cx + 14, 18, cx + 16, 48); g.stroke();
+                    g.beginPath(); g.ellipse(cx, 92, 22, 12, 0, 0, Math.PI * 2); g.stroke();
+                    g.beginPath(); g.moveTo(cx + 22, 92); g.lineTo(cx + (e ? -40 : 40), 110); g.stroke();
+                }
+                g.restore();
+            }
+        });
+        this.poi(-840, 150, 'shop', 'BIG TEX BURGERS');
+    },
+
     /* The resort hotels' rooftop boards carry their names now: one sheet of
        eight painted signs, every board a quad cut from it, the lot one draw
        call. Painted by day, the tubes lit after dark like every other sign. */
