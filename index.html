@@ -19956,6 +19956,60 @@ var City = {
         return m;
     },
 
+    /* ---- a shop's own paint, and its street face ------------------------- */
+    COMM_PAINT: [0x9a5a44, 0xb87a5a, 0xd8c8a0, 0xc8b898, 0xa8b8a0, 0xb8a890, 0xe0d0b0, 0x8a6a5a, 0xc89070, 0x9aa8a8],
+    AWNING: [[0xb02a24, 0xf0ece0], [0x2e6a3e, 0xf0ece0], [0x2a4a7a, 0xf0ece0], [0xd8b040, 0x6a4a2a], [0xd87a30, 0xf2e8cc], [0x7a2a3a, 0xe8dcc0]],
+    SIGNS: [0xc8302a, 0xe0b830, 0x2a8a8a, 0x2a4a8a, 0xe8e0c8, 0x3a3a3a],
+    _commWall: function (px, pz, wall) {
+        return this._hh(px, pz, 21) < 0.5 ? wall : this._mat(this.COMM_PAINT[Math.floor(this._hh(px, pz, 22) * this.COMM_PAINT.length)]);
+    },
+    /* the street face of a shop: s = -1 faces north (-z), 1 faces south */
+    _shopFront: function (px, h, pz, w, dp, s) {
+        var m = this._mat.bind(this), o = { solid: false, cast: false };
+        var fz = pz + s * dp / 2, k, r;
+        /* plate glass and the door */
+        World.addBox(w * 0.78, 2.6, 0.1, px - w * 0.06, 0.45, fz + s * 0.06, m(0x3d5561), o);
+        World.addBox(1.2, 2.4, 0.12, px + w * 0.38, 0.3, fz + s * 0.08, m(0x4a3a2c), o);
+        /* the awning: striped canvas on a frame, a scalloped valance at the front */
+        if (this._hh(px, pz, 23) < 0.65) {
+            var A = this.AWNING[Math.floor(this._hh(px, pz, 24) * this.AWNING.length)], n = Math.max(4, Math.round(w * 0.8 / 0.9));
+            var aw = w * 0.86, st = aw / n, ad = 1.7;
+            for (k = 0; k < n; k++) {
+                World.addBox(st, 0.08, ad, px - aw / 2 + st * (k + 0.5), 3.25, fz + s * (ad / 2), m(A[k % 2]), o);
+                World.addBox(st, 0.34, 0.05, px - aw / 2 + st * (k + 0.5), 2.95, fz + s * ad, m(A[k % 2]), o);
+            }
+            World.addBox(0.05, 0.6, 0.05, px - aw / 2, 2.7, fz + s * ad, m(0x3a3a38), o);
+            World.addBox(0.05, 0.6, 0.05, px + aw / 2, 2.7, fz + s * ad, m(0x3a3a38), o);
+        }
+        /* a blade sign on a building with the height for one */
+        r = this._hh(px, pz, 25);
+        if (h > 7 && r < 0.3) {
+            var sx = px + (r < 0.15 ? -1 : 1) * w * 0.4, sc = this.SIGNS[Math.floor(this._hh(px, pz, 26) * this.SIGNS.length)];
+            World.addBox(0.16, 3.4, 1.4, sx, 4.0, fz + s * 0.9, m(sc), o);
+            World.addBox(0.2, 2.8, 1.0, sx, 4.3, fz + s * 0.9, m(this._lift(sc, 0.3)), o);
+            World.addBox(0.08, 0.08, 0.9, sx, 7.3, fz + s * 0.5, m(0x3a3a38), o);
+        }
+        /* the fire escape: a landing at each floor and the ladder between */
+        if (h > 8 && this._hh(px, pz, 27) < 0.25) {
+            var ex = px - w * 0.18, fl;
+            for (fl = 3.8; fl < h - 1.5; fl += 3.6) {
+                World.addBox(w * 0.36, 0.07, 1.1, ex, fl, fz + s * 0.6, m(0x2a2c2e), o);
+                World.addBox(w * 0.36, 0.9, 0.04, ex, fl, fz + s * 1.13, m(0x2a2c2e), o);
+            }
+            World.addBox(0.05, h - 4.2, 0.05, ex + w * 0.15, 3.8, fz + s * 1.0, m(0x2a2c2e), o);
+            World.addBox(0.05, h - 4.2, 0.05, ex + w * 0.15 - 0.45, 3.8, fz + s * 1.0, m(0x2a2c2e), o);
+        }
+        /* now and then a billboard on the roof, on a steel frame */
+        if (w > 12 && this._hh(px, pz, 28) < 0.08) {
+            var B = this.SIGNS, b1 = B[Math.floor(this._hh(px, pz, 29) * B.length)], by = h + 1.6;
+            World.addBox(0.2, 4.4, 0.2, px - 3.5, h + 0.8, pz, m(0x3a3a38), o);
+            World.addBox(0.2, 4.4, 0.2, px + 3.5, h + 0.8, pz, m(0x3a3a38), o);
+            World.addBox(9, 3.4, 0.2, px, by + 1.6, pz, m(b1), o);
+            World.addBox(8.2, 1.2, 0.24, px, by + 2.6, pz, m(this._lift(b1, 0.35)), o);
+            World.addBox(9.2, 0.12, 0.6, px, by + 1.5, pz + s * 0.3, m(0x3a3a38), o);
+        }
+    },
+
     /* ---- a house's own look, and the yard round it ---------------------- */
     HOUSE_PAINT: [0xeeeae0, 0xe8dcb8, 0xe6d48a, 0xb8d8b8, 0x9fcfc0, 0xa8c4d8, 0xe8b8b8, 0xa8b890,
                   0xd8c4a0, 0xe0a088, 0x8a9aa8, 0xf0e6c8],
@@ -20052,8 +20106,9 @@ var City = {
                 h = this._rand(d.hmin, d.hmax) *
                     ((run < 16 || run > block - 30) ? 1.3 : 1);
                 px = bx - block / 2 + run + lw / 2;
+                var cwN = this._commWall(px, bz - block * 0.27, wall);
                 if (!this._bxw(lw, h, block * 0.42, px, 0, bz - block * 0.27,
-                              wall, { surface: this._surf })) {
+                              cwN, { surface: this._surf })) {
                     run += lw + 1.0; continue;
                 }
                 this._bx(lw + 0.8, 0.8, block * 0.44, px, h,
@@ -20062,8 +20117,12 @@ var City = {
                     this._roofClutter(px, h + 0.8, bz - block * 0.27,
                                       lw, block * 0.42);
                 }
-                this._bxw(lw, this._rand(d.hmin, d.hmax), block * 0.42, px, 0,
-                         bz + block * 0.27, wall, { surface: this._surf });
+                this._shopFront(px, h, bz - block * 0.27, lw, block * 0.42, -1);
+                var h2 = this._rand(d.hmin, d.hmax);
+                if (this._bxw(lw, h2, block * 0.42, px, 0,
+                         bz + block * 0.27, this._commWall(px, bz + block * 0.27, wall), { surface: this._surf })) {
+                    this._shopFront(px, h2, bz + block * 0.27, lw, block * 0.42, 1);
+                }
                 run += lw + 1.0;
             }
 
