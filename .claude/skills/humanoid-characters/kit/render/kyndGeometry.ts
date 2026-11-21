@@ -211,10 +211,30 @@ function nudged(values: number[]): number[] {
 
 const _p = new THREE.Vector3();
 
+/**
+ * Level of detail for everything built while it's set: 1 is full detail; 2 keeps every other
+ * sample of each surface (and half a tube's sides and steps), for a Kynd seen from afar.
+ */
+let detailStep = 1;
+export function atDetail<T>(step: number, build: () => T): T {
+  const was = detailStep;
+  detailStep = step;
+  try {
+    return build();
+  } finally {
+    detailStep = was;
+  }
+}
+/** Thin a sample list for the current detail: keep the ends (open lists) and both sides of a seam. */
+function thin(a: number[], wrap: boolean): number[] {
+  if (detailStep <= 1 || a.length <= 5) return a;
+  return a.filter((x, i) => i % detailStep === 0 || (!wrap && i === a.length - 1) || a[i - 1] === x || a[i + 1] === x);
+}
+
 /** Append a parametric grid surface to a bucket. */
 export function grid(b: Bucket, s: GridSpec): void {
-  const us = nudged(s.us);
-  const vs = nudged(s.vs);
+  const us = nudged(thin(s.us, !!s.wrapU));
+  const vs = nudged(thin(s.vs, false));
   const nu = us.length;
   const nv = vs.length;
   const base = b.vertexCount;
@@ -321,7 +341,11 @@ export interface RowMeshSpec {
 }
 
 /** Append a surface built from rows of varying density (see RowMeshSpec). */
-export function rowMesh(b: Bucket, s: RowMeshSpec): void {
+export function rowMesh(b: Bucket, s0: RowMeshSpec): void {
+  // At low detail: every other row (keeping the first, the last and the poles), each row thinned.
+  const s = detailStep > 1
+    ? { ...s0, rows: s0.rows.filter((r, i) => i % detailStep === 0 || i === s0.rows.length - 1 || r.us.length === 1).map((r) => ({ us: thin(r.us, false), v: r.v })) }
+    : s0;
   const base = b.vertexCount;
   const P: number[] = [];
   const start: number[] = [];

@@ -9,7 +9,7 @@ import { COLORS, mat } from './kit.ts';
 import type { LifeStage } from '../sim/family/Life.ts';
 import { greyed } from '../sim/family/genetics.ts';
 import { normalizeAppearance, outfitAt, type FullAppearance } from '../sim/entities/appearance.ts';
-import { Bucket, capsuleR, col, ellipsoid, grid, KIND, mixCol, Path, range, around, shade, tube } from './kyndGeometry.ts';
+import { atDetail, Bucket, capsuleR, col, ellipsoid, grid, KIND, mixCol, Path, range, around, shade, tube } from './kyndGeometry.ts';
 import { kyndMaterials, skinMaterial, type FaceDetail } from './kyndMaterials.ts';
 import { ANKLE_Y, BI, BONES, EL_Y, HIP_Y, KNEE_Y, PELVIS_Y, SH_Y, SPINE_Y, LID_LEVELS, WRIST_Y, boneLayout, buildBareFeet, buildBeard, buildHair, buildHands, buildHead, FrontProbe, HEAD_Y, Head, hairCrown, measure, palette, type BodyBuckets, type FaceLayout, type Measure, type Palette } from './kyndBody.ts';
 import { buildBareBody, buildHeadwear, buildOutfit, hairCoverFor } from './KyndGarments.ts';
@@ -1145,9 +1145,12 @@ interface BuiltBody {
  */
 const bodyCache = new Map<string, BuiltBody>();
 const CACHE_LIMIT = 48;
+/** Level of detail: the lighter body past FAR_AT metres from the eye, the full one again inside NEAR_AT. */
+export const FAR_AT = 17;
+export const NEAR_AT = 14;
 
-function acquireBody(L: FullAppearance, stage: LifeStage): BuiltBody {
-  const key = `${stage}|${JSON.stringify(L)}`;
+function acquireBody(L: FullAppearance, stage: LifeStage, detail = 1): BuiltBody {
+  const key = `${stage}|${detail}|${JSON.stringify(L)}`;
   let b = bodyCache.get(key);
   if (b) {
     // Most recently used goes to the end.
@@ -1157,7 +1160,7 @@ function acquireBody(L: FullAppearance, stage: LifeStage): BuiltBody {
     return b;
   }
   const grown = stage === 'adult' || stage === 'elder';
-  const { B, m, head, C } = buildBodyBuckets(L, stage);
+  const { B, m, head, C } = atDetail(detail, () => buildBodyBuckets(L, stage));
   const geos: Partial<Record<PartName, THREE.BufferGeometry>> = {};
   for (const name of PARTS) if (B[name].vertexCount > 0) geos[name] = B[name].toGeometry(name === 'garment' || name === 'shoes' || name === 'hat', name === 'skin' || name === 'feet' || name === 'bare');
   const lum = C.hair.r * 0.3 + C.hair.g * 0.55 + C.hair.b * 0.15;
@@ -1339,6 +1342,13 @@ export class KyndAvatar {
   private chestCensor: THREE.Mesh | null = null;
   private female = false;
   private cacheKey = '';
+  /** Level of detail (#perf): the full body, and a lighter one built when first seen from afar. */
+  private look: FullAppearance | null = null;
+  private fullGeos: Partial<Record<PartName, THREE.BufferGeometry>> = {};
+  private farGeos: Partial<Record<PartName, THREE.BufferGeometry>> | null = null;
+  private farKey = '';
+  /** Drawn with the lighter body. */
+  far = false;
   readonly headAnchor = new THREE.Object3D();
   readonly stage: LifeStage;
   /** Babies are a swaddled bundle, not a rig. */
@@ -1377,6 +1387,8 @@ export class KyndAvatar {
 
     const built = acquireBody(L, stage);
     this.cacheKey = built.key;
+    this.look = L;
+    this.fullGeos = built.geos;
 
     // Skeleton, in the rest pose.
     const layout = boneLayout(built.m, built.face);
@@ -1518,6 +1530,32 @@ export class KyndAvatar {
     }
   }
 
+  /**
+   * Draw the lighter body (every other sample of each surface: about 2.6× fewer triangles) past
+   * `FAR_AT` metres from the eye, the full one inside `NEAR_AT` (the gap stops it flickering at
+   * the edge). Returns true if it had to build the lighter body now (callers build one a frame).
+   */
+  setDistance(d: number, mayBuild: boolean): boolean {
+    if (!this.look || this.infant) return false;
+    const want = this.far ? d > NEAR_AT : d > FAR_AT;
+    if (want === this.far) return false;
+    let built = false;
+    if (want && !this.farGeos) {
+      if (!mayBuild) return false;
+      const b = acquireBody(this.look, this.stage, 2);
+      this.farKey = b.key;
+      this.farGeos = b.geos;
+      built = true;
+    }
+    this.far = want;
+    for (const mesh of this.meshes) {
+      const name = mesh.name as PartName;
+      const g = want ? this.farGeos?.[name] : this.fullGeos[name];
+      if (g) mesh.geometry = g;
+    }
+    return built;
+  }
+
   dispose(): void {
     this.bareMat?.dispose();
     if (this.chestCensor) {
@@ -1531,6 +1569,8 @@ export class KyndAvatar {
     for (const m of this.meshes) m.skeleton.dispose();
     if (this.cacheKey) releaseBody(this.cacheKey);
     this.cacheKey = '';
+    if (this.farKey) releaseBody(this.farKey);
+    this.farKey = '';
     if (this.infant) {
       this.root.traverse((o) => {
         const mesh = o as THREE.Mesh;
