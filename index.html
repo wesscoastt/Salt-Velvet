@@ -13294,6 +13294,22 @@ var Districts = {
             heroes: [], built: true
         },
         {
+            id: 'hickory-bend', name: 'HICKORY BEND',
+            blurb: 'Rice, cattle, oil and cousins. Every farm out here has a pump in the back forty and a shotgun by the door, and the county sheriff has supper at all of them.',
+            x: -3400, z: -1800, w: 3560, d: 1000,
+            style: 'camp', hmin: 4, hmax: 6,
+            palette: { wall: 0xd8ccb0, roofIdx: 1, accentIdx: 1 },
+            heroes: [], built: true
+        },
+        {
+            id: 'bayport', name: 'BAYPORT',
+            blurb: 'Tanks, towers and a flare that never goes out. They make things here nobody can pronounce, and the fish downstream have opinions about every one of them.',
+            x: 260, z: -1950, w: 2080, d: 900,
+            style: 'industrial', hmin: 8, hmax: 14,
+            palette: { wall: 0xa8a294, roofIdx: 1, accentIdx: 1 },
+            heroes: [], built: true
+        },
+        {
             id: 'bolivar', name: 'BOLIVAR',
             blurb: 'A lighthouse, a free ferry and twenty miles of beach houses on stilts owned by men who swear they have never heard of you. Last call is whenever the bartender\'s wife says so.',
             x: 2650, z: -830, w: 1900, d: 500,
@@ -15836,6 +15852,14 @@ var Routes = {
         { name: 'HIGHWAY 87', cls: 'rural', smooth: true,
           pts: [[1745, -636], [1850, -662], [2100, -690], [2600, -770], [3200, -870], [3560, -935]] },
         { name: 'LIGHTHOUSE ROAD', cls: 'dirt', smooth: false, pts: [[1880, -667], [1880, -760]] },
+        /* the mainland: Hickory Bend Road west off the West Loop, its farm roads, Bayport Road east */
+        { name: 'HICKORY BEND ROAD', cls: 'rural', smooth: false,
+          pts: [[-1560, -1550], [-2200, -1560], [-2600, -1580], [-3000, -1600], [-3600, -1625], [-4000, -1640], [-5200, -1660]] },
+        { name: 'FARM ROAD 2004', cls: 'dirt', smooth: false, pts: [[-2600, -1580], [-2600, -2250]] },
+        { name: 'SWEENY ROAD', cls: 'dirt', smooth: false, pts: [[-3600, -1625], [-3600, -2250]] },
+        { name: 'BAYPORT ROAD', cls: 'rural', smooth: false,
+          pts: [[-880, -1600], [-500, -1600], [0, -1660], [600, -1780], [1000, -1960]] },
+        { name: 'TANK FARM ROAD', cls: 'street', smooth: false, pts: [[0, -1660], [0, -2000]] },
         { name: 'THE CAUSEWAY', cls: 'highway', bridge: true, smooth: false,
           pts: [[-880, -40], [-880, -440], [-880, -1240], [-880, -1350]] }
     ],
@@ -17607,6 +17631,27 @@ var City = {
         return out;
     },
 
+    /* split a flat ShapeGeometry (in its XY plane) until no edge is longer than maxLen, halving
+       the longest edge each time; returns non-indexed BufferGeometry with uv = xy like the shape's */
+    _subdivide: function (geo, maxLen) {
+        var src = geo.index ? geo.toNonIndexed() : geo, P = src.attributes.position.array, out = [], st = [], i, M2 = maxLen * maxLen;
+        for (i = 0; i < P.length; i += 9) { st.push([P[i], P[i + 1], P[i + 3], P[i + 4], P[i + 6], P[i + 7]]); }
+        while (st.length) {
+            var t = st.pop(), ax = t[0], ay = t[1], bx = t[2], by = t[3], cx = t[4], cy = t[5];
+            var ab = (bx - ax) * (bx - ax) + (by - ay) * (by - ay), bc = (cx - bx) * (cx - bx) + (cy - by) * (cy - by), ca = (ax - cx) * (ax - cx) + (ay - cy) * (ay - cy);
+            if (ab <= M2 && bc <= M2 && ca <= M2) { out.push(ax, ay, 0, bx, by, 0, cx, cy, 0); continue; }
+            var mx, my;
+            if (ab >= bc && ab >= ca) { mx = (ax + bx) / 2; my = (ay + by) / 2; st.push([ax, ay, mx, my, cx, cy], [mx, my, bx, by, cx, cy]); }
+            else if (bc >= ca) { mx = (bx + cx) / 2; my = (by + cy) / 2; st.push([ax, ay, bx, by, mx, my], [ax, ay, mx, my, cx, cy]); }
+            else { mx = (cx + ax) / 2; my = (cy + ay) / 2; st.push([ax, ay, bx, by, mx, my], [mx, my, bx, by, cx, cy]); }
+        }
+        var g = new THREE.BufferGeometry(), uv = [];
+        for (i = 0; i < out.length; i += 3) { uv.push(out[i], out[i + 1]); }
+        g.setAttribute('position', new THREE.Float32BufferAttribute(out, 3));
+        g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+        return g;
+    },
+
     _shapeMesh: function (pts, y, hex, name) {
         /* Back to ShapeGeometry. I replaced this with hand-built
            BufferGeometry to fix a normals problem and spent a whole
@@ -17631,6 +17676,10 @@ var City = {
         for (i = 1; i < pts.length; i++) { shape.lineTo(pts[i][0], -pts[i][1]); }
         shape.closePath();
         var geo = new THREE.ShapeGeometry(shape);
+        /* the coarse fan stays for raycasts; the drawn mesh is cut fine for the per-vertex light */
+        var coarse = geo;
+        geo = this._subdivide(geo, 36);
+        coarse.rotateX(Math.PI / 2); coarse.scale(1, 1, -1); coarse.translate(0, y, 0);
         /* rotateX(+PI/2) leaves the face normals pointing DOWN. Rather
            than overwrite them (which fought DoubleSide and rendered the
            landmass black), flip the geometry on Z so the winding and the
@@ -17659,8 +17708,13 @@ var City = {
         m.userData.part = 'world';
         m.userData.material = 'concrete';
         m.name = name;
+        m.userData.landMesh = true;
         World.scene.add(m);
-        World.hitMeshes.push(m);
+        /* bullets and the camera hit the coarse copy: same plane, a fraction of the triangles */
+        var proxy = new THREE.Mesh(coarse, m.material);
+        proxy.userData = m.userData; proxy.name = name;
+        proxy.updateMatrixWorld(true);
+        World.hitMeshes.push(proxy);
         return m;
     },
 
@@ -23790,7 +23844,7 @@ var Ocean = {
         /* the winding depends on the coast's direction: make them face up */
         var nr = g.attributes.normal;
         for (i = 0; i < nr.count; i++) { if (nr.getY(i) < 0) { nr.setXYZ(i, -nr.getX(i), -nr.getY(i), -nr.getZ(i)); } }
-        var m = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }));
+        var m = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 4 }));
         m.userData.part = 'world'; m.userData.material = 'water';
         m.receiveShadow = true;
         World.scene.add(m);
@@ -23861,6 +23915,7 @@ var Ocean = {
         };
         var mat = new THREE.ShaderMaterial({
             uniforms: U, transparent: true, depthWrite: true,
+            polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 4,
             vertexShader: [
                 'attribute float aDepth; attribute float aLand;',
                 'uniform float uTime; uniform float uRough;',
@@ -23870,7 +23925,7 @@ var Ocean = {
                 '  vec4 w = modelMatrix * vec4(position, 1.0);',
                 '  vec2 g;',
                 '  float amp = mix(0.3, 1.0, smoothstep(0.0, 0.3, aDepth)) * uRough;',
-                '  w.y += swell(w.xz, uTime, amp, g);',
+                '  w.y += swell(w.xz, uTime, amp, g) - aLand * 0.6;',
                 '  vW = w.xyz; vD = aDepth; vL = aLand;',
                 '  vec4 mv = viewMatrix * w; vDist = -mv.z;',
                 '  gl_Position = projectionMatrix * mv;',
@@ -24000,6 +24055,7 @@ var Ocean = {
             ].join('\n')
         }));
         m.renderOrder = 2;
+        m.material.polygonOffset = true; m.material.polygonOffsetFactor = 2; m.material.polygonOffsetUnits = 4;
         m.frustumCulled = false;
         World.scene.add(m);
         (this.foams = this.foams || []).push(m);
@@ -27606,7 +27662,7 @@ var GroundTex = {
         World.scene.traverse(function (o) {
             if (!o.isMesh || !o.material || !o.material.color || o.material.userData.tex || o.material.map) { return; }
             var gt = o.geometry && o.geometry.type;
-            if (gt !== 'ShapeGeometry' && gt !== 'ShapeBufferGeometry') { return; }
+            if (gt !== 'ShapeGeometry' && gt !== 'ShapeBufferGeometry' && !(o.userData && o.userData.landMesh)) { return; }
             var k = Tex.classify('concrete', o.material.color, 200, 0.1, 200);
             Tex.patch(o.material, k[0], k[0]);
             n++;
@@ -27817,13 +27873,124 @@ var Landmarks = {
     /* ================================================================ BUILD */
     build: function () {
         var names = ['_pleasurePier', '_flagship', '_seawallStrip', '_beachSide', '_gulfQueen', '_downtown', '_trapani',
-                     '_waterfront', '_government', '_mainland', '_hospital', '_galveston', '_renames', '_hotelSigns', '_cadiz', '_fishCamps', '_midIsland', '_westEnd', '_pelican', '_eastEnd', '_bolivar'], i;
+                     '_waterfront', '_government', '_mainland', '_hospital', '_galveston', '_renames', '_hotelSigns', '_cadiz', '_fishCamps', '_midIsland', '_westEnd', '_pelican', '_eastEnd', '_bolivar', '_hickory'], i;
         for (i = 0; i < names.length; i++) {
             try { this[names[i]](); } catch (e) { if (window.console) { console.warn('landmarks ' + names[i], e); } }
         }
         this._makeBulbs();
         this._buoys();
     },
+    /* ---- the mainland: Hickory Bend and Bayport ------------------------------------- */
+    _hickory: function () {
+        var keepRng = City._rngState;
+        City._seed(19591959);
+        var self = this, k, i, x, z, hh = function (a, b, n) { return City._hh(a, b, n); };
+        var R = City._rand.bind(City);
+        var lerpZ = function (P, x) { var q; for (q = 1; q < P.length; q++) { if (x >= P[q][0]) { return P[q - 1][1] + (P[q][1] - P[q - 1][1]) * (x - P[q - 1][0]) / (P[q][0] - P[q - 1][0]); } } return P[P.length - 1][1]; };
+        var HB = [[-1560, -1550], [-2200, -1560], [-2600, -1580], [-3000, -1600], [-3600, -1625], [-4000, -1640], [-5200, -1660]];
+        var land4 = function (x, z, w, d) { return City._onLand(x - w / 2, z - d / 2) && City._onLand(x + w / 2, z - d / 2) && City._onLand(x - w / 2, z + d / 2) && City._onLand(x + w / 2, z + d / 2); };
+
+        /* -- the farmsteads, along the road, one side then the other -- */
+        var FARMS = [], FX = [-1900, -2350, -2850, -3300, -3850, -4350, -4850];
+        for (k = 0; k < FX.length; k++) {
+            var fz = lerpZ(HB, FX[k]) + (k % 2 ? 70 : -70);
+            if (!land4(FX[k], fz, 60, 50)) { continue; }
+            FARMS.push([FX[k], fz]);
+        }
+        var near = function (x, z, r) { var q; for (q = 0; q < FARMS.length; q++) { if (Math.abs(FARMS[q][0] - x) < r && Math.abs(FARMS[q][1] - z) < r) { return true; } } return false; };
+        /* -- the fields: rice, plowed ground, pasture, stubble -- */
+        var FC = [[0x7aa04a, 'grass'], [0x6a5a44, 'sand'], [0x8a9a5a, 'grass'], [0xb8a878, 'sand'], [0x6e8e40, 'grass']];
+        for (x = -1720; x > -5150; x -= 132) {
+            var rz0 = lerpZ(HB, x);
+            for (z = -1370; z > -2320; z -= 92) {
+                if (Math.abs(z - rz0) < 40 || Math.abs(x + 2600) < 70 || Math.abs(x + 3600) < 70 || near(x, z, 80)) { continue; }
+                if (!land4(x, z, 124, 86)) { continue; }
+                var c = FC[Math.floor(hh(x, z, 31) * FC.length)];
+                this.box(124, 0.03, 86, x, 0.02, z, c[0], { solid: false, cast: false, surface: c[1] });
+                /* a fence down one side, now and then */
+                if (hh(x, z, 32) < 0.35) { this.deco(124, 1.1, 0.12, x, 0, z - 44, 0x7a6a58); }
+            }
+        }
+        /* the farmsteads themselves */
+        for (k = 0; k < FARMS.length; k++) {
+            x = FARMS[k][0]; z = FARMS[k][1];
+            var sd = k % 2 ? -1 : 1;                             /* toward the road */
+            this.box(56, 0.03, 46, x, 0.02, z, 0x6f8a46, { solid: false, cast: false, surface: 'grass' });
+            this.box(10, 5.5, 8, x - 12, 0.6, z + sd * 10, [0xf2efe6, 0xe8dcb8, 0xd8e0d8][k % 3], { surface: 'wood' });
+            this.deco(10, 0.6, 8, x - 12, 0, z + sd * 10, 0x8a5a4a);
+            City._winJob(10, 5.5, 8, x - 12, 0.6, z + sd * 10);
+            City._gable(x - 12, 6.1, z + sd * 10, 10.8, 8.8, 2.4, City.HOUSE_ROOF[k % City.HOUSE_ROOF.length]);
+            this.deco(10, 0.2, 2.6, x - 12, 2.8, z + sd * 15.4, 0x5a5e62);
+            this.box(14, 8, 18, x + 12, 0, z - sd * 6, k % 3 === 2 ? 0x8a8a84 : 0xa8322a, { surface: 'wood' });
+            City._gable(x + 12, 8, z - sd * 6, 15, 19, 4, 0x5a5e62);
+            this.deco(4, 5, 0.1, x + 12, 0, z - sd * 6 + sd * 9.06, 0x3a2a1e);
+            this.cyl(3, 12, x + 23, 0, z - sd * 14, 0xc8c2b4, 14, 'metal');
+            this.cone(3.3, 2.4, x + 23, 12, z - sd * 14, 0x8a8a84, 14);
+            /* the windmill and its tank */
+            for (i = 0; i < 4; i++) { this.deco(0.25, 11, 0.25, x - 26 + (i % 2) * 2.4, 0, z - sd * 8 + (i < 2 ? 0 : 2.4), 0x6a6a64); }
+            this.cyl(1.8, 0.2, x - 24.8, 11.2, z - sd * 6.8, 0x8a8a84, 12, 'metal', false);
+            this.cyl(3, 1.4, x - 18, 0, z - sd * 12, 0x6a6e70, 16, 'metal');
+            /* the drive out to the road */
+            this.box(4, 0.03, 50, x - 12, 0.03, z + sd * 42, 0x9a9078, { solid: false, cast: false, surface: 'gravel' });
+        }
+        /* -- live-oak mottes, out in the pasture -- */
+        for (k = 0; k < 46; k++) {
+            x = R(-5100, -1700); z = R(-2260, -1380);
+            if (!City._onLand(x, z) || Roads.onRoad(x, z) || near(x, z, 70) || Math.abs(z - lerpZ(HB, x)) < 25) { continue; }
+            var nT = 3 + Math.floor(R(0, 4));
+            for (i = 0; i < nT; i++) { City._tree(x + R(-12, 12), z + R(-12, 12), R(4, 5.5), R(7, 10), 0); }
+        }
+        /* -- pumpjacks, nodding in the back forty -- */
+        var pump = function (x, z, yaw) {
+            var c = Math.cos(yaw), s2 = Math.sin(yaw);
+            self.box(2.4, 0.5, 6, x, 0, z, 0x6a6a64, { surface: 'metal', rotY: yaw });
+            self.deco(0.3, 3.6, 0.3, x + s2 * 0.4 + c * 0.7, 0.5, z + c * 0.4 - s2 * 0.7, 0x4a4e50);
+            self.deco(0.3, 3.6, 0.3, x + s2 * 0.4 - c * 0.7, 0.5, z + c * 0.4 + s2 * 0.7, 0x4a4e50);
+            self.box(0.5, 0.5, 6.4, x, 4.1, z, 0x3a3e40, { solid: false, rotY: yaw });
+            self.box(0.8, 1.8, 0.9, x + s2 * 3.2, 3.4, z + c * 3.2, 0x3a3e40, { solid: false, rotY: yaw });
+            self.box(1.4, 1.2, 1.2, x - s2 * 2.6, 1.0, z - c * 2.6, 0x7a2a22, { solid: false, rotY: yaw });
+        };
+        for (k = 0; k < 24; k++) {
+            x = R(-5000, -1800); z = R(-2250, -1900);
+            if (!City._onLand(x, z) || Roads.onRoad(x, z) || near(x, z, 60) || World.pointBlocked(x, z, 4)) { continue; }
+            pump(x, z, R(0, Math.PI));
+        }
+        this.poi(-3300, -1700, 'star', 'HICKORY BEND');
+
+        /* -- Bayport: the tank farm -- */
+        for (i = 0; i < 4; i++) {
+            for (k = 0; k < 3; k++) {
+                var tr = 9 + hh(i, k, 41) * 5;
+                City._tank(60 + i * 36, -1728 - k * 36, tr, 9 + hh(i, k, 42) * 6);
+            }
+        }
+        this.deco(150, 1.2, 0.6, 114, 0, -1708, 0x9a958a); this.deco(150, 1.2, 0.6, 114, 0, -1842, 0x9a958a);
+        this.deco(0.6, 1.2, 134, 37, 0, -1775, 0x9a958a); this.deco(0.6, 1.2, 134, 191, 0, -1775, 0x9a958a);
+        /* -- the cracking plant: columns, a pipe rack, the flare -- */
+        var COL = [[520, -1860, 2.4, 38], [534, -1860, 3, 30], [548, -1866, 2, 44], [520, -1888, 3.2, 26], [560, -1890, 2.6, 34], [580, -1870, 1.8, 40]];
+        for (k = 0; k < COL.length; k++) {
+            this.cyl(COL[k][2], COL[k][3], COL[k][0], 0, COL[k][1], 0xb8b8b0, 14, 'metal');
+            this.cyl(COL[k][2] + 0.4, 0.4, COL[k][0], COL[k][3] * 0.5, COL[k][1], 0x8a8a84, 14, 'metal', false);
+        }
+        for (k = 0; k < 9; k++) { this.deco(0.4, 6, 0.4, 470 + k * 16, 0, -1840, 0x6a6a64); }
+        this.deco(132, 0.8, 2.4, 534, 6, -1840, 0x6a6a64);
+        this.deco(132, 0.5, 0.5, 534, 6.9, -1839.4, 0xc8a032); this.deco(132, 0.5, 0.5, 534, 6.9, -1840.6, 0x8a8a84);
+        this.cyl(1.1, 58, 640, 0, -1910, 0x8a8a84, 10, 'metal');
+        var flame = new THREE.Mesh(new THREE.ConeGeometry(1.6, 6, 8), new THREE.MeshBasicMaterial({ color: 0xffa040 }));
+        flame.position.set(640, 61, -1910); World.scene.add(flame);
+        this.box(40, 10, 24, 470, 0, -1910, 0xb0aa9c, { surface: 'concrete' });
+        City._winJob(40, 10, 24, 470, 0, -1910);
+        this.sign(['BAYPORT CHEMICAL', 'BETTER LIVING THROUGH WORDS YOU CAN\u2019T PRONOUNCE'], { x: 470, y: 7.4, z: -1922.1, yaw: Math.PI, w: 14, h: 2.6, fg: '#f2efe6', fg2: '#ffb04a', bg: '#1e3a2a', noBack: true, day: 0.6 });
+        this.poi(540, -1870, 'ind', 'BAYPORT CHEMICAL');
+        /* -- the chemical wharf on East Bay, a ship alongside -- */
+        this.deck(306, 318, -1466, -1396);
+        City._freighter(298, -1420, 2);
+        for (k = 0; k < 6; k++) { this.deco(0.4, 4, 0.4, 312, 0, -1470 - k * 30, 0x6a6a64); }
+        this.deco(0.8, 0.8, 180, 312, 4, -1555, 0xc8a032);
+
+        City._rngState = keepRng;
+    },
+
     /* ---- Bolivar ------------------------------------------------------------------ */
     _bolivar: function () {
         var keepRng = City._rngState;
