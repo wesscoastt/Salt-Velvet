@@ -41706,7 +41706,7 @@ var UI = {
     MAP_EXT: { minX: -7400, maxX: 3700, minZ: -2700, maxZ: 800 },
     _mapBase: function () {
         if (this._mapImg !== undefined) { return this._mapImg; }
-        var E = this.MAP_EXT, W = SV.util.isMobile() ? 2560 : 4096;
+        var E = this.MAP_EXT, W = SV.util.isMobile() ? 2560 : 6144;
         var sc = W / (E.maxX - E.minX), H = Math.round((E.maxZ - E.minZ) * sc);
         var cv = document.createElement('canvas');
         cv.width = W; cv.height = H;
@@ -41887,9 +41887,11 @@ var UI = {
             o.push('<text class="mlab" data-id="' + d.id + '" x="' + d.x + '" y="' + d.z + '" text-anchor="middle" dominant-baseline="central">' + d.name + '</text>');
         }
         o.push('</g>');
-        o.push('<text class="mwat" data-wat="1" x="80" y="600" text-anchor="middle">GULF OF MEXICO</text>');
-        o.push('<text class="mwat" data-wat="1" x="-40" y="-330" text-anchor="middle">SHIP CHANNEL</text>');
-        o.push('<text class="mwat" data-wat="1" x="-700" y="200" text-anchor="middle">WEST BAY</text>');
+        o.push('<text class="mwat" data-wat="1" x="-1800" y="690" text-anchor="middle">GULF OF MEXICO</text>');
+        o.push('<text class="mwat" data-wat="2" x="330" y="-355" text-anchor="middle">SHIP CHANNEL</text>');
+        o.push('<text class="mwat" data-wat="1" x="-2700" y="-860" text-anchor="middle">WEST BAY</text>');
+        o.push('<text class="mwat" data-wat="1" x="900" y="-1250" text-anchor="middle">EAST BAY</text>');
+        o.push('<text class="mwat" data-wat="2" x="1950" y="-170" text-anchor="middle">BOLIVAR ROADS</text>');
         return o.join('');
     },
 
@@ -42018,6 +42020,7 @@ var UI = {
         for (i = 0; i < L.length; i++) {
             L[i].setAttribute('font-size', (15 * u).toFixed(2));
             L[i].setAttribute('letter-spacing', (6 * u).toFixed(2));
+            L[i].style.display = (L[i].getAttribute('data-wat') === '2' && u > 9) ? 'none' : '';
         }
         var dyn = document.getElementById('mapDyn');
         if (dyn) { dyn.innerHTML = this._mapDynamic(); }
@@ -42075,7 +42078,7 @@ var UI = {
         if (fx === undefined) { fx = 0.5; fy = 0.5; }
         var spanZ = V.span * bh / bw;
         var wx = V.cx + (fx - 0.5) * V.span, wz = V.cz + (fy - 0.5) * spanZ;
-        var ns = SV.util.clamp(V.span * k, 120, 3600);
+        var ns = SV.util.clamp(V.span * k, 120, 11600);
         V.cx = wx - (fx - 0.5) * ns;
         V.cz = wz - (fy - 0.5) * ns * bh / bw;
         V.span = ns;
@@ -42102,7 +42105,9 @@ var UI = {
             var n = Roads.nearest(x, z);
             if (n && n.dist < Roads.cls(n.seg).w / 2 + 6) { road = n.seg[5]; }
         }
-        var what = !land ? (z > 300 ? 'GULF OF MEXICO' : z < -250 ? 'SHIP CHANNEL' : 'OPEN WATER') : (d ? d.name : 'OUTSKIRTS');
+        var what = !land ? (x > 1100 && z < 200 && z > -700 ? 'BOLIVAR ROADS' : z > 360 ? 'GULF OF MEXICO' :
+                   (z < -230 && z > -480 && x > -250 && x < 1100) ? 'SHIP CHANNEL' : (x > 100 && z < -900) ? 'EAST BAY' :
+                   (x > -800 && x < -560 && z > -200 && z < 200) ? 'OFFATTS BAYOU' : z < -300 ? 'WEST BAY' : 'OPEN WATER') : (d ? d.name : 'OUTSKIRTS');
         el.innerHTML = '<b>' + what + '</b>' + (road ? road : (d && land ? d.blurb : '&nbsp;'));
     },
 
