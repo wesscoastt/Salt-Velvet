@@ -275,6 +275,7 @@ canvas{display:block;width:100%;height:100%}
 #loader .ld-t{font-size:min(64px,11vw);letter-spacing:.08em;line-height:1}
 #loader .ld-a{color:#e8b45c;font-size:min(28px,5vw);margin:4px 0}
 #loader .ld-s{font:11px/1 sans-serif;letter-spacing:.5em;opacity:.55;margin-top:22px}
+#loader .ld-q{font:italic 14px/1.5 Georgia,serif;max-width:min(560px,82vw);text-align:center;opacity:.7;margin-top:26px;color:#d8c9a6}
 #loader .ld-bar{width:min(260px,60vw);height:2px;margin-top:26px;background:rgba(232,220,196,.12);
   overflow:hidden;position:relative}
 #loader .ld-bar:after{content:"";position:absolute;top:0;bottom:0;width:40%;
@@ -1113,7 +1114,8 @@ body.touch #flash{white-space:nowrap;max-width:none}
 </head>
 <body>
 <div id="loader"><div class="ld-t">SALT</div><div class="ld-a">&amp;</div><div class="ld-t">VELVET</div>
-<div class="ld-s">BUILDING PORT HALCYON</div><div class="ld-bar"></div></div>
+<div class="ld-s">BUILDING PORT HALCYON</div><div class="ld-bar"></div><div class="ld-q" id="ldQuip"></div></div>
+<script data-quip>(function(){var T=["The Port Authority reminds you: what falls in the harbor stays in the harbor.","Shrimp boats don’t check papers. Neither do the shrimp.","The Bolivar ferry is free. Getting off it is negotiable.","Every cop on this island has a price. Most of them have two.","Mass is at ten. The Don notices who is late.","The Santa Fe will take you to the mainland. Nobody promised to bring you back.","Hurricane season runs June to November. So does everything else.","If the radio says it is quiet on the waterfront, it isn’t.","Never order the fish at a place called the Dead Mullet.","Never trust a man in a clean hat at a cattle auction.","The Chamber of Commerce would like to remind visitors that gambling is illegal in Texas. Good luck at the tables."];var e=document.getElementById('ldQuip');if(e){e.textContent=T[Math.floor(Math.random()*T.length)];}})();</script>
 <canvas id="gl"></canvas>
 
 <div id="hud">
@@ -27905,13 +27907,35 @@ var Landmarks = {
     /* ================================================================ BUILD */
     build: function () {
         var names = ['_pleasurePier', '_flagship', '_seawallStrip', '_beachSide', '_gulfQueen', '_downtown', '_trapani',
-                     '_waterfront', '_government', '_mainland', '_hospital', '_galveston', '_renames', '_hotelSigns', '_cadiz', '_fishCamps', '_midIsland', '_westEnd', '_pelican', '_eastEnd', '_bolivar', '_hickory'], i;
+                     '_waterfront', '_government', '_mainland', '_hospital', '_galveston', '_renames', '_hotelSigns', '_cadiz', '_fishCamps', '_midIsland', '_westEnd', '_pelican', '_eastEnd', '_bolivar', '_hickory', '_billboards'], i;
         for (i = 0; i < names.length; i++) {
             try { this[names[i]](); } catch (e) { if (window.console) { console.warn('landmarks ' + names[i], e); } }
         }
         this._makeBulbs();
         this._buoys();
     },
+    /* ---- billboards along the roads out of town -------------------------------------- */
+    _billboards: function () {
+        var B = [[-905,-200,3.141592653589793,["WELCOME TO PORT HALCYON","PLAYGROUND OF THE GULF \u00b7 PLEASE DRIVE CAREFULLY"],"#f2e6b8","#ffb04a","#1e2a44"],[-862,-1470,-1.5707963267948966,["BAYPORT CHEMICAL","IT\u2019S IN THE WATER. SMILE."],"#f2efe6","#7affd8","#1e3a2a"],[-1450,-62,0,["HOLLIS FOR COUNCIL","HE ALREADY KNOWS WHERE YOU LIVE"],"#ffffff","#ff6a4a","#1e2a44"],[-2900,364,0,["DR. FEENEY\u2019S NERVE TONIC","FOR THE MODERN WORRIER"],"#2a2a28","#7a1e22","#ece4d0"],[-3300,-158,3.141592653589793,["KOOL-KREST HAIR TONIC","HOLDS LIKE A GRUDGE"],"#ffd24a","#e8e4da","#2a1e18"],[-2950,-1578,3.141592653589793,["HOLLIS HOMES FALLOUT SHELTERS","SLEEPS SIX \u00b7 SURVIVES ONE"],"#2a2a28","#c8302a","#e8dcb8"],[-300,-1602,3.141592653589793,["VISIT BEAUTIFUL BOLIVAR","IT\u2019S RIGHT THERE \u00b7 THE FERRY IS FREE"],"#1e2a44","#c8302a","#f4ecd4"],[2350,-708,3.141592653589793,["THE DEAD MULLET \u00b7 2 MILES","BEER \u00b7 DANCING \u00b7 FIGHTS EXTRA"],"#ff4a6a","#7affd8","#14141a"],[1140,-18,3.141592653589793,["WPHY 960 \u00b7 RAPID RAY","ROCK AND ROLL ALL NIGHT \u00b7 YOUR PARENTS HATE IT"],"#ffd24a","#ff6a2a","#121014"],[-902,262,1.5707963267948966,["BIG TEX BURGERS \u00b7 15\u00a2","NO REFUNDS \u00b7 NO QUESTIONS"],"#ffd24a","#ff6a2a","#121014"],[-1900,-60,3.141592653589793,["THE SANTA FE","SEE THE MAINLAND \u00b7 RETURN TICKETS EXTRA"],"#f4ecd4","#d8302a","#1e2a44"]], k, t, self = this, placed = 0;
+        for (k = 0; k < B.length; k++) {
+            var b = B[k], yaw = b[2], fx = Math.sin(yaw), fz = Math.cos(yaw), rx = Math.cos(yaw), rz = -Math.sin(yaw);
+            /* back off from the road (against the way the board looks) until there is room */
+            for (t = 0; t < 5; t++) {
+                var x = b[0] - fx * t * 6, z = b[1] - fz * t * 6;
+                var p1x = x + rx * 4.6, p1z = z + rz * 4.6, p2x = x - rx * 4.6, p2z = z - rz * 4.6;
+                if (!City._onLand(p1x, p1z) || !City._onLand(p2x, p2z)) { continue; }
+                if (Roads.onRoad(p1x, p1z) || Roads.onRoad(p2x, p2z) || Roads.onRoad(x, z)) { continue; }
+                if (World.pointBlocked(x, z, 7)) { continue; }
+                this.deco(0.35, 7, 0.35, p1x, 0, p1z, 0x4a4038); this.deco(0.35, 7, 0.35, p2x, 0, p2z, 0x4a4038);
+                this.box(12.6, 4.6, 0.3, x - fx * 0.25, 6.6, z - fz * 0.25, 0x3a3430, { rotY: yaw, solid: false, surface: 'wood' });
+                this.sign(b[3], { x: x + fx * 0.05, y: 8.9, z: z + fz * 0.05, yaw: yaw, w: 12, h: 4.2, fg: b[4], fg2: b[5], bg: b[6], noBack: true, day: 0.28 });
+                placed++;
+                break;
+            }
+        }
+        this._billboardsPlaced = placed;
+    },
+
     /* ---- the mainland: Hickory Bend and Bayport ------------------------------------- */
     _hickory: function () {
         var keepRng = City._rngState;
@@ -28266,7 +28290,7 @@ var Landmarks = {
         }
         this.box(100, 9, 36, 990, 0, -100, 0xd8cfb8, { surface: 'brick' });
         City._winJob(100, 9, 36, 990, 0, -100);
-        this.sign(['STANDARD FRUIT', 'BANANAS \u00b7 COLD STORAGE'], { x: 990, y: 6.6, z: -81.9, yaw: 0, w: 12, h: 2.2, fg: '#ffd24a', fg2: '#e8e4da', bg: '#1e3a2a', noBack: true, day: 0.5, open: [5, 20] });
+        this.sign(['GULF FRUIT CO.', 'BANANAS \u00b7 COLD STORAGE'], { x: 990, y: 6.6, z: -81.9, yaw: 0, w: 12, h: 2.2, fg: '#ffd24a', fg2: '#e8e4da', bg: '#1e3a2a', noBack: true, day: 0.5, open: [5, 20] });
         City._freighter(880, -288, 0);
         City._freighter(1030, -284, 1);
         this.box(50, 12, 40, 565, 0, -110, 0xc8c0ac, { surface: 'concrete' });
