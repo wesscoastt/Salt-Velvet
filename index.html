@@ -13275,6 +13275,31 @@ var Districts = {
             style: 'industrial', hmin: 4, hmax: 8,
             palette: { wall: 0x9a948a, roofIdx: 1, accentIdx: 1 },
             heroes: [], built: true
+        },
+        /* ---- the East End ---- */
+        {
+            id: 'harborside', name: 'HARBORSIDE',
+            blurb: 'Cotton compresses, a grain elevator you can see from Houston, and longshoremen who have never once been told what is in the crate.',
+            x: 795, z: -115, w: 530, d: 210,
+            style: 'industrial', hmin: 6, hmax: 12,
+            palette: { wall: 0x9a8a74, roofIdx: 1, accentIdx: 1 },
+            heroes: [], built: true
+        },
+        {
+            id: 'east-end', name: 'THE EAST END',
+            blurb: 'Cotton money built these houses up on stilts after the 1900 storm. Now it is widows, dentists and one very quiet bookmaker who paid for everybody\'s new porch.',
+            x: 795, z: 160, w: 530, d: 340,
+            style: 'house', hmin: 7, hmax: 10,
+            palette: { wall: 0xe8dcb8, roofIdx: 0, accentIdx: 0 },
+            heroes: [], built: true
+        },
+        {
+            id: 'east-beach', name: 'EAST BEACH',
+            blurb: 'Where the seawall gives out and the Gulf gets its own way. Cars on the sand, radios up, and the jetty walking out to sea like it owes somebody money.',
+            x: 1260, z: 90, w: 380, d: 560,
+            style: 'resort', hmin: 4, hmax: 6,
+            palette: { wall: 0xe8d8b8, roofIdx: 1, accentIdx: 3 },
+            heroes: [], built: true
         }
     ],
 
@@ -15778,6 +15803,27 @@ var Routes = {
         { name: 'SEAWOLF ROAD', cls: 'street', smooth: true,
           pts: [[250, -560], [320, -495], [420, -470], [560, -478], [720, -500], [830, -540], [880, -575]] },
         { name: 'SPOIL ROAD', cls: 'dirt', smooth: false, pts: [[720, -500], [700, -700]] },
+        /* the East End: Harbor Boulevard and Broadway run on east, the one-way avenues, the cross
+           streets from the harbour to the seawall, Ferry Road, and East Beach Drive round the tip */
+        { name: 'HARBORSIDE DRIVE', cls: 'street', smooth: false,
+          pts: [[420, -184], [600, -200], [760, -205], [920, -205], [1060, -200], [1205, -185]] },
+        { name: 'HARBOR BOULEVARD', cls: 'arterial', smooth: false,
+          pts: [[530, 0], [600, 0], [760, 0], [920, 0], [1060, 0], [1180, -60]] },
+        { name: 'AVENUE L', cls: 'street', smooth: false, oneway: 1,
+          pts: [[420, 100], [600, 100], [760, 100], [920, 100], [1060, 100]] },
+        { name: 'BROADWAY', cls: 'street', smooth: false,
+          pts: [[420, 185], [600, 185], [760, 185], [920, 185], [1060, 185]] },
+        { name: 'SILK ROW', cls: 'street', smooth: false, oneway: -1,
+          pts: [[420, 240], [600, 240], [760, 240], [920, 240], [1060, 240]] },
+        { name: 'SEAWALL BOULEVARD', cls: 'arterial', smooth: false,
+          pts: [[420, 300], [600, 320], [760, 330], [920, 335], [1060, 330], [1200, 315], [1320, 255]] },
+        { name: 'TENTH STREET', cls: 'street', smooth: false, pts: [[600, -200], [600, 0], [600, 100], [600, 185], [600, 240], [600, 320]] },
+        { name: 'SIXTH STREET', cls: 'street', smooth: false, pts: [[760, -205], [760, 0], [760, 100], [760, 185], [760, 240], [760, 330]] },
+        { name: 'SECOND STREET', cls: 'street', smooth: false, pts: [[920, -205], [920, 0], [920, 100], [920, 185], [920, 240], [920, 335]] },
+        { name: 'FORT SAN JACINTO ROAD', cls: 'street', smooth: false, pts: [[1060, -200], [1060, 0], [1060, 100], [1060, 185], [1060, 240], [1060, 330]] },
+        { name: 'FERRY ROAD', cls: 'street', smooth: false, pts: [[1180, -60], [1195, -130], [1205, -185]] },
+        { name: 'EAST BEACH DRIVE', cls: 'street', smooth: true,
+          pts: [[1320, 255], [1390, 150], [1400, 40], [1350, -50], [1180, -60]] },
         { name: 'THE CAUSEWAY', cls: 'highway', bridge: true, smooth: false,
           pts: [[-880, -40], [-880, -440], [-880, -1240], [-880, -1350]] }
     ],
@@ -17721,6 +17767,12 @@ var City = {
     _stone: function (x, z, k) {
         if (this._noBuild(x, z)) { return; }          /* the quay has a bulkhead, not a rock line */
         var w = this._rand(1.6, 3.2) * k, d = this._rand(1.4, 2.8) * k, h = this._rand(1.0, 1.8) * k;
+        /* walked dry, or where the East End wants sand, a slip or a wharf instead of rock */
+        if (this._dryStone || (x > 1370 && z > -40) || (x > 1100 && z > 250) || (x > 1188 && x < 1222 && z < -150) ||
+                (x > 728 && x < 748 && z < -200) || (x > 820 && x < 1060 && z < -230)) {
+            this._rand(0, 5); this._rand(0, 8); this._rand(0, 1); this._rand(0, 1); this._rand(0, 1);
+            return;
+        }
         if (Math.abs(x - (-850)) < 7 && ((z < -290 && z > -400) || (z < -1240 && z > -1345))) {
             this._rand(0, 5); this._rand(0, 8); this._rand(0, 1); this._rand(0, 1); this._rand(0, 1);
             return;
@@ -18902,12 +18954,39 @@ var City = {
     /* An irregular coast that hugs the city. The first pass was a lozenge
        with the districts floating in the middle of it, which reads as an
        arena rather than a barrier island. */
-    ISLAND_SHAPE: [
+    /* the outline as it was before the East End (v78): the riprap still walks it, so every
+       stone and everything drawn after them lands where it always did */
+    ISLAND_V78: [
         /* Offatts Bayou's east bank, from the head of the bayou north to the bay */
         [-640, 150], [-616, 30], [-604, -76], [-556, -178],
         /* the harbour shore and the east end, as they always were */
         [-420, -238], [-182, -258], [58, -264], [262, -246], [402, -201], [492, -131], [541, -28],
         [548, 92], [519, 201], [452, 299], [378, 374], [330, 392], [176, 420], [-62, 424], [-262, 418],
+        [-340, 402], [-424, 381],
+        /* the Gulf shore runs on west, across the foot of the bayou, to San Luis Pass */
+        [-520, 392], [-640, 412], [-790, 410], [-852, 398], [-924, 390], [-1000, 392], [-1110, 398],
+        [-1250, 394], [-1370, 400], [-1500, 404], [-1640, 412], [-1800, 414], [-1990, 432], [-2200, 430],
+        [-2420, 447], [-3000, 442], [-4000, 422], [-5000, 392], [-6000, 330], [-6600, 255], [-7020, 200],
+        /* the pass, and back east along West Bay */
+        [-7000, 140], [-6600, 60], [-6000, -40], [-5400, -120], [-4800, -180], [-4200, -260], [-3600, -330],
+        [-3000, -420], [-2420, -470], [-2080, -500], [-1880, -500], [-1540, -470], [-1250, -440], [-1010, -420],
+        [-900, -400],
+        /* the bayou's west bank, down to its head */
+        [-800, -300], [-786, -170], [-790, 70], [-770, 150], [-700, 178]
+    ],
+    /* the East End's new coast, from the harbour round the tip to the Gulf, for its own riprap */
+    EAST_COAST: [[262, -246], [402, -201], [480, -222], [600, -248], [800, -256], [1000, -250], [1150, -228],
+                 [1280, -170], [1380, -80], [1440, 40], [1450, 170], [1400, 290], [1300, 370], [1150, 410],
+                 [950, 420], [750, 418], [560, 410], [420, 402], [330, 392]],
+    ISLAND_SHAPE: [
+        /* Offatts Bayou's east bank, from the head of the bayou north to the bay */
+        [-640, 150], [-616, 30], [-604, -76], [-556, -178],
+        /* the harbour shore and the east end, as they always were */
+        [-420, -238], [-182, -258], [58, -264], [262, -246], [402, -201],
+        /* the East End: the channel shore, the tip at East Beach, the Gulf shore back west */
+        [480, -222], [600, -248], [800, -256], [1000, -250], [1150, -228], [1280, -170], [1380, -80],
+        [1440, 40], [1450, 170], [1400, 290], [1300, 370], [1150, 410], [950, 420], [750, 418], [560, 410],
+        [420, 402], [330, 392], [176, 420], [-62, 424], [-262, 418],
         [-340, 402], [-424, 381],
         /* the Gulf shore runs on west, across the foot of the bayou, to San Luis Pass */
         [-520, 392], [-640, 412], [-790, 410], [-852, 398], [-924, 390], [-1000, 392], [-1110, 398],
@@ -19226,16 +19305,21 @@ var City = {
 
     /* boulders along the shoreline, following the island outline */
     _riprap: function () {
-        this._riprapOn(this.ISLAND_SHAPE, 884422);
+        this._riprapOn(this.ISLAND_V78, 884422, 7, 14);
+        this._dryStone = false;
         this._riprapOn(this.MAINLAND_SHAPE, 884433);
         var keep = this._rngState;
         this._riprapOn(this.PELICAN_SHAPE, 884455);
+        this._riprapOn(this.EAST_COAST, 884466, -1, -1, true);
+        this._dryStone = false;
         this._rngState = keep;
     },
-    _riprapOn: function (pts, seed) {
+    _riprapOn: function (pts, seed, d0, d1, open) {
         var i, k, a, b, dx, dz, len, n, t, x, z, nx, nz;
         this._seed(seed);
-        for (i = 0; i < pts.length; i++) {
+        for (i = 0; i < (open ? pts.length - 1 : pts.length); i++) {
+            /* segments d0..d1 are walked without laying a stone (the coast moved) */
+            this._dryStone = d0 !== undefined && i >= d0 && i <= d1;
             a = pts[i];
             b = pts[(i + 1) % pts.length];
             dx = b[0] - a[0];
@@ -19380,6 +19464,7 @@ var City = {
         var made = 0;
         for (x = -1600 + CELL * 22; x <= 540; x += CELL) {      /* -588: east of the bayou */
             for (z = -450; z <= 400; z += CELL) {
+                if (x + 20 > 548) { continue; }
                 var here = Districts.at(x, z);
                 if (here && !here.water) { continue; }
                 if (!this._onLand(x - 20, z - 20) || !this._onLand(x + 20, z + 20) ||
@@ -27710,13 +27795,228 @@ var Landmarks = {
     /* ================================================================ BUILD */
     build: function () {
         var names = ['_pleasurePier', '_flagship', '_seawallStrip', '_beachSide', '_gulfQueen', '_downtown', '_trapani',
-                     '_waterfront', '_government', '_mainland', '_hospital', '_galveston', '_renames', '_hotelSigns', '_cadiz', '_fishCamps', '_midIsland', '_westEnd', '_pelican'], i;
+                     '_waterfront', '_government', '_mainland', '_hospital', '_galveston', '_renames', '_hotelSigns', '_cadiz', '_fishCamps', '_midIsland', '_westEnd', '_pelican', '_eastEnd'], i;
         for (i = 0; i < names.length; i++) {
             try { this[names[i]](); } catch (e) { if (window.console) { console.warn('landmarks ' + names[i], e); } }
         }
         this._makeBulbs();
         this._buoys();
     },
+    /* ---- the East End and East Beach ------------------------------------------ */
+    _eastEnd: function () {
+        /* its own random sequence: nothing built after this moves */
+        var keepRng = City._rngState;
+        City._seed(15151);
+        var self = this, k, i, x, z, hh = function (a, b, n) { return City._hh(a, b, n); };
+        var steel = 0x56606a, conc = 0xb8b2a4;
+
+        /* -- the raised Victorians: brick piers, clapboard, a gable, a deep porch, sometimes a
+              gallery upstairs or a turret on the corner -- */
+        var PAINT = City.HOUSE_PAINT.concat(City.MANSION_PAINT), ROOF = City.HOUSE_ROOF, made = 0;
+        var vic = function (px, pz, sd) {
+            var w = 10 + Math.floor(hh(px, pz, 11) * 4), d = 11 + Math.floor(hh(px, pz, 12) * 3), h = 7 + Math.floor(hh(px, pz, 13) * 3.5);
+            var cx, cz, q4;
+            for (cx = -1; cx <= 1; cx += 2) {
+                for (cz = -1; cz <= 1; cz += 2) {
+                    var qx = px + cx * (w / 2 + 1), qz = pz + cz * (d / 2 + 1);
+                    if (!City._onLand(qx, qz) || Roads.onRoad(qx, qz)) { return; }
+                }
+            }
+            if (World.pointBlocked(px, pz, Math.max(w, d) / 2 + 1.5)) { return; }
+            var paint = PAINT[Math.floor(hh(px, pz, 14) * PAINT.length)], roof = ROOF[Math.floor(hh(px, pz, 15) * ROOF.length)], trim = 0xf4f0e6;
+            var B = 1.4;                                       /* raised after the storm */
+            self.box(w, B, d, px, 0, pz, 0x8a5a4a, { surface: 'brick' });
+            self.box(w, h, d, px, B, pz, paint, { surface: 'wood' });
+            City._winJob(w, h, d, px, B, pz);
+            City._gable(px, B + h, pz, w + 0.8, d + 0.8, 3 + hh(px, pz, 16) * 1.4, roof);
+            /* the porch across the front, its posts, its roof, the gingerbread, the steps */
+            var fz = pz + sd * (d / 2 + 1.6);
+            self.deco(w * 0.92, 0.22, 3.2, px, B - 0.2, fz, 0xb8b0a0);
+            for (q4 = 0; q4 < 4; q4++) { self.deco(0.2, 2.7, 0.2, px - w * 0.42 + q4 * w * 0.28, B, fz + sd * 1.45, trim); }
+            self.deco(w * 0.96, 0.2, 3.6, px, B + 2.7, fz, roof);
+            self.deco(w * 0.92, 0.28, 0.08, px, B + 2.4, fz + sd * 1.56, trim);
+            self.deco(w * 0.92, 0.7, 0.08, px, B, fz + sd * 1.56, trim);
+            self.deco(1.8, B, 1.6, px - w * 0.3, 0, fz + sd * 2.4, 0xb0a898);
+            if (h >= 8.5 && hh(px, pz, 17) < 0.55) {
+                /* the gallery upstairs */
+                for (q4 = 0; q4 < 4; q4++) { self.deco(0.18, 2.5, 0.18, px - w * 0.42 + q4 * w * 0.28, B + 2.9, fz + sd * 1.45, trim); }
+                self.deco(w * 0.92, 0.7, 0.08, px, B + 2.9, fz + sd * 1.56, trim);
+                self.deco(w * 0.96, 0.18, 3.6, px, B + 5.4, fz, roof);
+            }
+            if (hh(px, pz, 18) < 0.3) {
+                /* a turret on the front corner */
+                var tx = px + (hh(px, pz, 19) < 0.5 ? -1 : 1) * (w / 2 - 0.4), tz = pz + sd * (d / 2 - 0.4);
+                self.cyl(2, h + 1.8, tx, B, tz, paint, 12, 'wood', false);
+                self.cone(2.3, 3.6, tx, B + h + 1.8, tz, roof, 12);
+            }
+            self.deco(0.9, 3.2, 0.9, px + w * 0.3, B + h - 0.6, pz - sd * d * 0.2, 0x8a4a3a);
+            made++;
+        };
+        /* the blocks between the cross streets, rows set back from each avenue */
+        var XS = [420, 600, 760, 920, 1060];
+        var seawallZ = function (x) { var P = [[420, 300], [600, 320], [760, 330], [920, 335], [1060, 330]], q; for (q = 1; q < P.length; q++) { if (x <= P[q][0]) { return P[q - 1][1] + (P[q][1] - P[q - 1][1]) * (x - P[q - 1][0]) / (P[q][0] - P[q - 1][0]); } } return 330; };
+        var ROWS = [[20, 1, 0], [80, -1, 100], [120, 1, 100], [165, -1, 185], [205, 1, 185], [220, -1, 240], [260, 1, 240], [null, -1, 0]];
+        var skip = function (x, z) {
+            return (x > 760 && x < 920 && z > 100 && z < 185) ||       /* Sacred Heart */
+                   (x > 600 && x < 760 && z > 185 && z < 240);         /* Live Oak Park */
+        };
+        for (i = 0; i < XS.length - 1; i++) {
+            for (k = 0; k < ROWS.length; k++) {
+                for (x = Math.max(XS[i] + 15, 549); x <= XS[i + 1] - 15; x += 17) {
+                    var rz = ROWS[k][0] === null ? seawallZ(x) - 22 : ROWS[k][0];
+                    /* sd: +1 = the front faces south (+z); a row faces the avenue it is set back from */
+                    var face = ROWS[k][0] === null ? 1 : (ROWS[k][2] > rz ? 1 : -1);
+                    if (skip(x, rz)) { continue; }
+                    vic(x + (hh(x, rz, 20) - 0.5) * 2, rz, face);
+                }
+            }
+        }
+        /* live oaks along the avenues, in the parkway between kerb and walk */
+        var AV = [0, 100, 185, 240];
+        for (i = 0; i < XS.length - 1; i++) {
+            for (k = 0; k < AV.length; k++) {
+                for (x = Math.max(XS[i] + 20, 560); x < XS[i + 1] - 18; x += 34) {
+                    City._tree(x, AV[k] + 8.6, 3.6, 7.5, 0); City._tree(x + 17, AV[k] - 8.6, 3.6, 7.5, 0);
+                }
+            }
+        }
+
+        /* -- Sacred Heart: a brick church, the steeple on Broadway -- */
+        this.box(17, 12, 34, 840, 0, 136, 0xa8644a, { surface: 'brick' });
+        City._winJob(17, 12, 34, 840, 0, 136);
+        City._gable(840, 12, 136, 18.4, 35, 6, 0x4a4f56);
+        this.box(8, 24, 8, 840, 0, 157, 0xa8644a, { surface: 'brick' });
+        this.deco(8.6, 0.6, 8.6, 840, 24, 157, 0xd8d0bc);
+        this.cone(4.6, 18, 840, 24.6, 157, 0x4a4f56, 8);
+        this.deco(0.25, 3, 0.25, 840, 42.4, 157, 0xd8c060); this.deco(1.6, 0.25, 0.25, 840, 44, 157, 0xd8c060);
+        this.deco(3.2, 5, 0.1, 840, 0, 161.06, 0x5a3a24);
+        this.deco(8, 0.5, 3, 840, 0, 162.5, 0xb0a898);
+        this.deco(3.2, 3.2, 0.1, 840, 16.4, 161.06, 0xe8e0c8);
+        this.sign(['SACRED HEART', 'MASS 7 \u00b7 9 \u00b7 11 \u00b7 CONFESSIONS SAT.'], { x: 852, y: 1.8, z: 172, yaw: 0, w: 4.4, h: 1.2, fg: '#2a2a28', fg2: '#7a1e22', bg: '#ece4d0', noBack: true, day: 0.9 });
+        this.poi(840, 140, 'star', 'SACRED HEART CHURCH');
+
+        /* -- Live Oak Park: lawn, the bandstand, oaks, benches -- */
+        this.box(150, 0.03, 42, 680, 0.02, 212.5, 0x6a9a48, { solid: false, cast: false, surface: 'grass' });
+        this.cyl(5, 0.8, 680, 0, 212.5, 0xd8d0bc, 16, 'concrete');
+        for (k = 0; k < 8; k++) { var a8 = k / 8 * Math.PI * 2; this.deco(0.2, 3.2, 0.2, 680 + Math.cos(a8) * 4.4, 0.8, 212.5 + Math.sin(a8) * 4.4, 0xf4f0e6); }
+        this.cone(5.6, 2.6, 680, 4, 212.5, 0x6e3a2c, 16);
+        for (k = 0; k < 6; k++) { City._tree(618 + k * 25, k % 2 ? 199 : 226, 4.4, 8.5, 0); }
+        for (k = 0; k < 4; k++) { this.deco(2, 0.5, 0.6, 650 + k * 20, 0, 205, 0x6a4a32); }
+        this.poi(680, 212, 'star', 'LIVE OAK PARK');
+
+        /* -- Harborside: Elevator B, the compress, the banana sheds, freighters at the wharf -- */
+        for (k = 0; k < 8; k++) {
+            this.cyl(4.2, 34, 648 + k * 8.4, 0, -128, 0xc8c2b4, 16, 'plaster');
+            this.cyl(4.2, 34, 648 + k * 8.4, 0, -111.6, 0xc8c2b4, 16, 'plaster');
+        }
+        this.box(14, 48, 14, 727, 0, -120, 0xbcb6a8, { surface: 'plaster' });
+        this.box(70, 2.4, 22, 678, 34, -120, 0xb0aa9c, { solid: false, surface: 'concrete' });
+        this.box(4, 4, 124, 727, 30, -183, 0x8a8478, { solid: false, surface: 'metal' });
+        this.box(6, 34, 6, 727, 0, -246, 0x9a9488, { surface: 'concrete' });
+        City._staticMesh(new THREE.CylinderGeometry(0.5, 0.5, 14, 8), this._m(0x5a5e62), 727, 26, -256, 1, 1, 1, 0.7, 0, 0, 'metal', true);
+        this.sign(['ELEVATOR B'], { x: 727, y: 40, z: -112.9, yaw: 0, w: 12, h: 3, fg: '#f2efe6', bg: '#8a2a22', noBack: true, day: 0.5, open: [5, 20] });
+        this.deck(732, 740, -330, -244);
+        City._freighter(718, -292, 2);
+        /* the cotton compress and its bale yard */
+        this.box(120, 10, 40, 840, 0, -100, 0x9a8a74, { surface: 'brick' });
+        City._winJob(120, 10, 40, 840, 0, -100);
+        for (k = 0; k < 6; k++) { City._gable(790 + k * 20, 10, -100, 20.4, 41, 3, 0x5a5e62); }
+        this.sign(['GULF COTTON COMPRESS', 'HIGH DENSITY \u00b7 EST. 1902'], { x: 840, y: 7.6, z: -79.9, yaw: 0, w: 14, h: 2.4, fg: '#f2efe6', fg2: '#e8c060', bg: '#3a2a20', noBack: true, day: 0.5, open: [5, 20] });
+        for (k = 0; k < 18; k++) { this.box(2.4, 1.4, 1.4, 800 + (k % 6) * 3, (Math.floor(k / 6)) * 1.4, -60, 0xe8e2d0, { surface: 'wood' }); }
+        /* the banana sheds on the wharf, the fruit boats alongside */
+        for (k = 0; k < 2; k++) {
+            var shx = 840 + k * 150;
+            this.box(110, 8, 20, shx, 0, -228, 0x7a8a7a, { surface: 'metal' });
+            City._gable(shx, 8, -228, 111, 21, 2.4, 0x4a4f56);
+            this.deck(shx - 55, shx + 55, -252, -238);
+        }
+        this.box(100, 9, 36, 990, 0, -100, 0xd8cfb8, { surface: 'brick' });
+        City._winJob(100, 9, 36, 990, 0, -100);
+        this.sign(['STANDARD FRUIT', 'BANANAS \u00b7 COLD STORAGE'], { x: 990, y: 6.6, z: -81.9, yaw: 0, w: 12, h: 2.2, fg: '#ffd24a', fg2: '#e8e4da', bg: '#1e3a2a', noBack: true, day: 0.5, open: [5, 20] });
+        City._freighter(880, -288, 0);
+        City._freighter(1030, -284, 1);
+        this.box(50, 12, 40, 565, 0, -110, 0xc8c0ac, { surface: 'concrete' });
+        City._winJob(50, 12, 40, 565, 0, -110);
+        this.sign(['CRYSTAL ICE & COLD STORAGE'], { x: 565, y: 9.6, z: -89.9, yaw: 0, w: 12, h: 1.6, fg: '#8fe8ff', bg: '#1a2a3a', noBack: true });
+        this.poi(727, -150, 'ind', 'ELEVATOR B');
+
+        /* -- the seawall carried on east, and the sand -- */
+        var prom = 0xc4bfb2, para = 0xb0aa9c, cap = 0x5b6167;
+        for (x = 324; x < 1100; x += 12) {
+            this.box(12.2, 0.2, 7, x, 0, 384, prom, { solid: false, cast: false, surface: 'concrete' });
+            this.box(12, 0.95, 0.35, x, 0, 387.3, para, { surface: 'concrete' });
+            this.deco(12, 0.1, 0.5, x, 0.95, 387.3, cap);
+            if (Math.round((x - 324) / 12) % 3 === 0) { City._lampAt(x, 386.6, 0, -1); }
+        }
+        City._shapeMesh([[318, 388], [1100, 388], [1230, 355], [1330, 290], [1395, 200], [1418, 100], [1410, 0], [1380, -80],
+                         [1440, 40], [1450, 170], [1400, 290], [1300, 370], [1150, 410], [950, 420], [750, 418], [560, 410],
+                         [420, 402], [330, 392]], 0.06, City.SHARED.sand, 'BEACHEAST');
+
+        /* -- East Beach: the pavilion, cars on the sand, umbrellas, the lifeguard -- */
+        this.box(18, 0.4, 11, 1352, 0, 302, 0x8a6a4a, { solid: false, surface: 'wood' });
+        for (k = 0; k < 6; k++) { this.deco(0.3, 3.6, 0.3, 1344 + (k % 3) * 8, 0.4, 297 + Math.floor(k / 3) * 10, 0xf4f0e6); }
+        this.deco(19, 0.3, 12, 1352, 4, 302, 0x2a6a8a);
+        this.box(6, 3, 4, 1352, 0.4, 304, 0xf2ead8, { surface: 'wood' });
+        this.sign(['EAST BEACH', 'COLD DRINKS \u00b7 BAIT \u00b7 TUBES'], { x: 1352, y: 4.9, z: 308.1, yaw: 0, w: 6, h: 1.4, fg: '#ff6a4a', fg2: '#2a6a8a', bg: '#f4ecd4', day: 0.8 });
+        var CARS = [0xc8302a, 0xe8dcb8, 0x2a6a8a, 0x3a5a3a, 0xd8c060, 0x7a2a2a, 0x8a9aa8, 0xe8e4da];
+        for (k = 0; k < 14; k++) {
+            z = 60 + k * 8;
+            this.box(1.9, 1.4, 4.8, 1418, 0, z, CARS[k % CARS.length], { rotY: Math.PI / 2 + (hh(k, 3, 7) - 0.5) * 0.3, surface: 'metal' });
+            this.deco(1.7, 0.6, 2.4, 1418, 1.4, z, CARS[(k + 3) % CARS.length]);
+            if (k % 3 === 0) { this.deco(0.06, 2.2, 0.06, 1432, 0, z + 3, 0xe8e4da); this.cone(1.4, 0.5, 1432, 2.0, z + 3, k % 2 ? 0xc8302a : 0x2a6a8a, 10); }
+        }
+        this.deco(0.2, 3, 0.2, 1425, 0, 196, 0xe8e4da); this.deco(0.2, 3, 0.2, 1427, 0, 196, 0xe8e4da);
+        this.deco(2.4, 0.2, 2.4, 1426, 3, 196, 0xe8e4da); this.deco(1.4, 0.9, 0.2, 1426, 3.2, 197, 0xc8302a);
+        this.poi(1352, 302, 'shop', 'EAST BEACH PAVILION');
+
+        /* -- the South Jetty: granite walking out into the Gulf, a light at the end -- */
+        var jx = 1425, jz = 235, ux = 0.55, uz = 0.835;
+        for (k = 0; k < 105; k++) {
+            x = jx + ux * k * 4; z = jz + uz * k * 4;
+            City._rock(x + City._rand(-1.5, 1.5), -0.6, z + City._rand(-1.5, 1.5), City._rand(3, 4.4), City._rand(2, 2.8), City._rand(3, 4.4), City.STONES[k % 5]);
+            City._rock(x + uz * 2.6, -0.9, z - ux * 2.6, City._rand(2.4, 3.4), 2, City._rand(2.4, 3.4), City.STONES[(k + 2) % 5]);
+            City._rock(x - uz * 2.6, -0.9, z + ux * 2.6, City._rand(2.4, 3.4), 2, City._rand(2.4, 3.4), City.STONES[(k + 4) % 5]);
+        }
+        var ex = jx + ux * 420, ez = jz + uz * 420;
+        this.cyl(1.2, 7, ex, 0.5, ez, 0xe8e4da, 10, 'concrete', false);
+        this.cyl(1.5, 0.4, ex, 7.5, ez, 0x3a3a38, 10, 'metal', false);
+        this.deco(0.7, 0.7, 0.7, ex, 7.9, ez, 0xc8302a);
+        this.poi(1440, 250, 'star', 'THE SOUTH JETTY');
+
+        /* -- Fort San Jacinto: a casemated battery under a sand berm, its gun pits open to the Gulf -- */
+        this.box(84, 5, 30, 1240, 0, 120, 0xb8ad8a, { surface: 'sand' });
+        this.deco(80, 0.4, 26, 1240, 5, 120, 0x7a8a4a);
+        this.box(64, 4.6, 0.6, 1240, 0, 135.3, conc, { surface: 'concrete' });
+        for (k = 0; k < 4; k++) { this.deco(3, 3, 0.1, 1212 + k * 18.6, 0, 135.65, 0x1c1c1e); }
+        for (k = -1; k <= 1; k += 2) {
+            this.cyl(6, 0.8, 1240 + k * 24, 4.6, 112, conc, 18, 'concrete', false);
+            City._staticMesh(new THREE.CylinderGeometry(0.3, 0.42, 10, 12).translate(0, 5, 0), this._m(0x4a4e4c), 1240 + k * 24, 6.4, 112, 1, 1, 1, Math.PI / 2 - 0.15, 0, 0, 'metal', true);
+        }
+        this.sign(['FORT SAN JACINTO', 'U.S. ARMY \u00b7 DECOMMISSIONED 1946'], { x: 1240, y: 2.2, z: 141, yaw: 0, w: 6, h: 1.4, fg: '#3a3a38', fg2: '#7a1e22', bg: '#d8d0c0', edge: '#3a3a38', noBack: true, day: 0.9 });
+        this.deco(0.2, 2.2, 0.2, 1237.6, 0, 140.9, 0x3a3a38); this.deco(0.2, 2.2, 0.2, 1242.4, 0, 140.9, 0x3a3a38);
+        this.poi(1240, 120, 'gov', 'FORT SAN JACINTO');
+
+        /* -- the Bolivar ferry landing at the end of Ferry Road -- */
+        this.deck(1198, 1212, -246, -196);
+        this.box(0.3, 1.1, 46, 1197.6, 0.22, -221, 0xe8e2d4, { surface: 'wood' });
+        this.box(0.3, 1.1, 46, 1212.4, 0.22, -221, 0xe8e2d4, { surface: 'wood' });
+        this.box(3, 3, 3, 1222, 0, -178, 0xe8dcc0, { surface: 'wood' });
+        this.sign(['BOLIVAR FERRY', 'FREE \u00b7 STATE HIGHWAY DEPT.'], { x: 1222, y: 3.8, z: -176.45, yaw: 0, w: 4.6, h: 1.2, fg: '#ffe08a', fg2: '#8fe8ff' });
+        for (k = 0; k < 5; k++) { this.box(1.9, 1.5, 4.6, 1212, 0, -160 + k * 7, CARS[(k * 3) % CARS.length], { surface: 'metal' }); }
+        /* the ferry, in her slip */
+        this.box(16, 2.6, 44, 1205, -1.4, -272, 0xe8e4da, { surface: 'metal' });
+        this.deco(16.2, 0.6, 44.2, 1205, -1.6, -272, 0x2a2a2a);
+        this.deco(15, 0.2, 40, 1205, 1.2, -272, 0x6a6a64);
+        this.box(4, 5, 12, 1212, 1.2, -272, 0xf2efe6, { surface: 'metal' });
+        this.deco(4.4, 1.2, 4, 1212, 6.2, -272, 0x2b3a44);
+        this.cyl(0.9, 4, 1212, 6.2, -276, 0x1c1c1e, 10, 'metal', false);
+        this.sign(['R. S. STERLING'], { x: 1213.1, y: 4.4, z: -266, yaw: Math.PI / 2, w: 5, h: 0.9, fg: '#1e2a44', bg: '#f2efe6', noBack: true, day: 0.4, open: [5, 20] });
+        this.poi(1205, -200, 'dock', 'BOLIVAR FERRY');
+
+        City._rngState = keepRng;
+        this._eastMade = made;
+    },
+
     /* ---- Pelican Island ------------------------------------------------------ */
     _pelican: function () {
         var self = this, k, i, x, z;
