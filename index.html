@@ -92,6 +92,11 @@ canvas{display:block;width:100%;height:100%}
 #radioCall{font-size:10px;letter-spacing:.44em;color:var(--amber)}
 #radioNow{font-size:12px;letter-spacing:.14em;color:var(--bone);margin-top:6px;opacity:.85}
 #radioNow b{font-weight:400;opacity:.55}
+#radioTalk{position:absolute;left:50%;top:calc(env(safe-area-inset-top) + 92px);transform:translateX(-50%);
+  width:min(600px,78vw);text-align:center;opacity:0;transition:opacity .6s;pointer-events:none;
+  text-shadow:0 2px 8px rgba(0,0,0,.95);font-size:13px;line-height:1.45;color:var(--bone);font-style:italic}
+#radioTalk .rt-who{display:block;font-style:normal;font-family:var(--punch,Impact,sans-serif);letter-spacing:.22em;
+  font-size:11px;color:var(--amber);margin-bottom:3px}
 #radioHint{font-size:8px;letter-spacing:.24em;color:var(--bone);opacity:0;margin-top:5px;
   transition:opacity .3s}
 #radio.tunable #radioHint{opacity:.4}
@@ -184,6 +189,11 @@ canvas{display:block;width:100%;height:100%}
 #radioCall{font-size:10px;letter-spacing:.44em;color:var(--amber)}
 #radioNow{font-size:12px;letter-spacing:.14em;color:var(--bone);margin-top:6px;opacity:.85}
 #radioNow b{font-weight:400;opacity:.55}
+#radioTalk{position:absolute;left:50%;top:calc(env(safe-area-inset-top) + 92px);transform:translateX(-50%);
+  width:min(600px,78vw);text-align:center;opacity:0;transition:opacity .6s;pointer-events:none;
+  text-shadow:0 2px 8px rgba(0,0,0,.95);font-size:13px;line-height:1.45;color:var(--bone);font-style:italic}
+#radioTalk .rt-who{display:block;font-style:normal;font-family:var(--punch,Impact,sans-serif);letter-spacing:.22em;
+  font-size:11px;color:var(--amber);margin-bottom:3px}
 #radioHint{font-size:8px;letter-spacing:.24em;color:var(--bone);opacity:0;margin-top:5px;
   transition:opacity .3s}
 #radio.tunable #radioHint{opacity:.4}
@@ -636,6 +646,11 @@ body.touch /* --- HUD: GTA San Andreas mobile layout ---------------------------
 #radioCall{font-size:10px;letter-spacing:.44em;color:var(--amber)}
 #radioNow{font-size:12px;letter-spacing:.14em;color:var(--bone);margin-top:6px;opacity:.85}
 #radioNow b{font-weight:400;opacity:.55}
+#radioTalk{position:absolute;left:50%;top:calc(env(safe-area-inset-top) + 92px);transform:translateX(-50%);
+  width:min(600px,78vw);text-align:center;opacity:0;transition:opacity .6s;pointer-events:none;
+  text-shadow:0 2px 8px rgba(0,0,0,.95);font-size:13px;line-height:1.45;color:var(--bone);font-style:italic}
+#radioTalk .rt-who{display:block;font-style:normal;font-family:var(--punch,Impact,sans-serif);letter-spacing:.22em;
+  font-size:11px;color:var(--amber);margin-bottom:3px}
 #radioHint{font-size:8px;letter-spacing:.24em;color:var(--bone);opacity:0;margin-top:5px;
   transition:opacity .3s}
 #radio.tunable #radioHint{opacity:.4}
@@ -1077,6 +1092,23 @@ body.touch #flash{white-space:nowrap;max-width:none}
   #pause .ppane{padding:12px !important}
   #pauseHints .hint:nth-child(n+4){display:none}
 }
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&display=swap" rel="stylesheet">
+<style>
+/* the display lettering: loud, condensed, a little cheap - fight cards and headlines */
+:root{--punch:"Anton","Impact","Haettenschweiler","Arial Narrow Bold","Arial Narrow",sans-serif}
+#saMoney,#pcMoney,#pauseWhen .pw.money b{font-family:var(--punch);letter-spacing:.03em}
+#saAmmo,#ammoMag,#speedoNum{font-family:var(--punch);letter-spacing:.02em}
+#cineTitle{font-family:var(--punch);letter-spacing:.08em;text-transform:uppercase}
+#bannerText{font-family:var(--punch);letter-spacing:.1em;font-size:46px;text-transform:uppercase}
+#flash{font-family:var(--punch);letter-spacing:.16em}
+.card h1{font-family:var(--punch);letter-spacing:.06em}
+.jname,#menuPlace .pl-n,.radioSt .rc{font-family:var(--punch);letter-spacing:.05em}
+#pause .ph-title,.ph-title{font-family:var(--punch);letter-spacing:.06em}
+#mapWhere,#pause #mapWhere{font-family:var(--punch);letter-spacing:.04em}
+.mlab{font-family:var(--punch)}
 </style>
 </head>
 <body>
@@ -47402,6 +47434,125 @@ var Theme = {
 SV.registerModule('theme', Theme);
 
 SV.registerModule('radio', Radio);
+
+/* ------------------------------------------------------------------ radio talk ---
+   Over the top of some records: the DJ, the sponsors, or the eight o'clock news, which
+   has heard what Vinny has been up to. A caption under the now-playing card. */
+var RadioTalk = {
+    DJ: {
+            "WPHY 960": {
+                    "who": "RAPID RAY DELACROIX · WPHY 960",
+                    "lines": [
+                            "That’s rock and roll, kids. Your parents hate it, which is how you know it works.",
+                            "WPHY nine-sixty! If your radio’s on anything else, it’s broken. Take it to Gus on Market Street. He’ll break it worse.",
+                            "Nine-sixty on your dial and ninety-six in the shade. Somebody turn off the Gulf.",
+                            "This one’s for the girls on the seawall, and the boys pretending they ain’t looking.",
+                            "Elvis is in the Army, kids. Uncle Sam finally found a way to get him a haircut.",
+                            "Request line is open! Nobody calls, but it’s open!",
+                            "Rapid Ray, live from a booth the sponsors won’t pay to air-condition. Sweat is free, baby.",
+                            "Cruisin’ Broadway tonight? Honk twice for Ray. Honk three times for the cops. They love that.",
+                            "My mother says this music leads to dancing, and dancing leads to Postoffice Row. She ain’t wrong."
+                    ]
+            },
+            "K-BAY 104": {
+                    "who": "BIG EARL PETTIBONE · K-BAY 104",
+                    "lines": [
+                            "Here’s a song about a man who lost his wife, his truck and his dog. Found the dog.",
+                            "K-BAY, a hundred and four. Honky tonk from the seawall to the flats, and no further, ’cause past the flats it gets strange.",
+                            "Weather: hot. Tomorrow: hotter. Day after: you’ll get used to it, or you won’t.",
+                            "Saw a fella out on Hickory Bend Road tryin’ to rope a pumpjack. Son, it ain’t gonna love you back.",
+                            "Rice is up, cattle’s down, and my brother-in-law’s still on my couch. Here’s one for him.",
+                            "If you’re listenin’ over in Bolivar, pick up your telephone. Your mama’s been callin’.",
+                            "This one’s for the boys at the cotton compress. Y’all ain’t foolin’ nobody with that lunch break.",
+                            "Big Earl’s rule of thumb: never trust a man in a clean hat at a cattle auction."
+                    ]
+            },
+            "WHC 77": {
+                    "who": "LADY VELVET · WHC 77",
+                    "lines": [
+                            "It’s after midnight somewhere, darling. That’s all the permission you need.",
+                            "WHC, seventy-seven. The music is cool, the night is hot, and the alibis are cheap.",
+                            "Somebody out there just lied to someone they love. This one’s for you. You know who you are.",
+                            "The Calypso Room has a new trumpet player. He’s very good. The old one is very missing.",
+                            "Lady Velvet, keeping your secrets since nineteen fifty-two. Mostly by forgetting them.",
+                            "Jazz is the blues in a better suit. Like half the men on this island.",
+                            "If you can hear this in a police car, officer, turn it up. You look tense."
+                    ]
+            }
+    },
+    ADS: [
+            "BAYPORT CHEMICAL. Better living through words you can’t pronounce. It’s already in your water - let it into your heart.",
+            "Worried about the Bomb? HOLLIS HOMES fallout shelters, now with a guest room. The end of the world is no excuse to be rude.",
+            "DR. FEENEY’S NERVE TONIC. For the jitters, the shakes, the vapors, and that feeling your neighbors are Communists. Your pharmacist takes it too.",
+            "BIG TEX BURGERS on Sixty-First Street. Fifteen cents. We don’t ask what’s in ’em, and neither should you.",
+            "THE LAST RESORT MOTOR COURT. Clean sheets, quiet rooms, no questions. Hourly rates for the busy executive.",
+            "CRYSTAL ICE & COLD STORAGE. Keeping Port Halcyon cool - and what’s in the back freezer nobody’s business.",
+            "THE PELICAN ROOST, Pelican Island. Shrimp, beer and a view of the dead ships. Bring cash. Leave quietly.",
+            "Ride the SANTA FE to Virginia Point! See the mainland! See it again on the way back!",
+            "KOOL-KREST HAIR TONIC. Holds through hurricanes, heartbreak and federal indictments.",
+            "The BOLIVAR FERRY is free, courtesy of the State of Texas. The State of Texas would like you to remember that come November.",
+            "Re-elect HOLLIS for Council. He already bought the office - the least you can do is make it legal.",
+            "THE DEAD MULLET, Crystal Beach. Beer, dancing and fights. Fights extra."
+    ],
+    NEWS: [
+            "The Port Authority announces the harbor is clean. The fish could not be reached for comment.",
+            "Texas Rangers raided three clubs on Postoffice Row last night and found nothing, as arranged.",
+            "The Army Engineers say the dredge at Pelican Island will run around the clock. Pelican Island’s residents, all four of them, are thrilled.",
+            "The Weather Bureau calls this a quiet hurricane season. The Weather Bureau said that in nineteen hundred, too.",
+            "City Council has voted to form a committee to study the possibility of considering more traffic lights.",
+            "Bayport Chemical denies the bay turned green on Tuesday. Bayport Chemical says it was teal."
+    ],
+    STORY: {
+            "m10_majestic": "Councilman Hollis reached the Flagship after last night’s Majestic premiere in one piece - what his doctor calls a miracle of modern chauffeuring.",
+            "m14_salt_sacks": "Police are looking into a break-in at Maldera Import, Pier 21. Nothing was reported missing. Mr. Maldera says that includes the salt.",
+            "m16_graving_dock": "Gunfire at the Halcyon Shipyards graving dock. Management calls it an industrial accident involving bullets.",
+            "m21_the_strike": "Dockers have walked out on Wharf 9. The Port Authority blames outside agitators, the heat and, in one statement, the moon.",
+            "m24_the_gate": "A deposition at the county courthouse ended early and loudly. The courthouse steps are closed for cleaning.",
+            "m26_the_chronicle": "The Chronicle prints a story about April nineteen forty-three. Several prominent citizens have cancelled their subscriptions, and their lunches.",
+            "m34_customs": "Fire in the Customs House records room. Officials say no important papers were lost, because they can’t find any.",
+            "m38_scholes": "A private plane bound for Havana did not leave Scholes Field last night. Neither did its passenger.",
+            "m42_calypso_burns": "The Calypso Room has burned to the waterline. The house band will play the Pleasure Pier until further notice.",
+            "m44_dawn": "Quiet on the waterfront this morning. Too quiet, say longshoremen, who would like it noted they were asleep."
+    },
+    _t: null,
+    init: function () {
+        var self = this, host = document.getElementById('radio');
+        if (!host || !host.parentNode) { return; }
+        var el = document.createElement('div');
+        el.id = 'radioTalk';
+        host.parentNode.appendChild(el);
+        this.el = el;
+        SV.bus.on('radio:track', function (d) { self._onTrack(d); });
+        SV.bus.on('radio:station', function () { self._hide(); });
+        SV.bus.on('radio:off', function () { self._hide(); });
+    },
+    _pick: function (a) { return a[Math.floor(Math.random() * a.length)]; },
+    _onTrack: function (d) {
+        if (!this.el || (typeof Game !== 'undefined' && !Game.started)) { return; }
+        if (Math.random() > 0.55) { return; }
+        var r = Math.random(), who, line, dj = this.DJ[d.call];
+        if (r < 0.5 && dj) { who = dj.who; line = this._pick(dj.lines); }
+        else if (r < 0.78) { who = 'A WORD FROM OUR SPONSORS'; line = this._pick(this.ADS); }
+        else {
+            who = 'HALCYON NEWS \u00b7 ' + (d.call || 'RADIO');
+            var done = (typeof Missions !== 'undefined' && Missions.completed) || [], fresh = [], i;
+            for (i = done.length - 1; i >= 0 && fresh.length < 3; i--) { if (this.STORY[done[i]]) { fresh.push(this.STORY[done[i]]); } }
+            line = fresh.length && Math.random() < 0.7 ? this._pick(fresh) : this._pick(this.NEWS);
+        }
+        var self = this;
+        clearTimeout(this._t);
+        this._t = setTimeout(function () {
+            self.el.innerHTML = '<span class="rt-who">' + who + '</span>' + line;
+            self.el.style.opacity = '1';
+            self._t = setTimeout(function () { self._hide(); }, 7000 + line.length * 45);
+        }, 2600);
+    },
+    _hide: function () { clearTimeout(this._t); if (this.el) { this.el.style.opacity = '0'; } },
+    update: function () {},
+    serialize: function () { return {}; },
+    deserialize: function () {}
+};
+SV.registerModule('radiotalk', RadioTalk);
 
 
 /* ===== 66_sfx.js ===== */
