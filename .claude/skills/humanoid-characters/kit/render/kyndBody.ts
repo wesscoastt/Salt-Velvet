@@ -1477,7 +1477,10 @@ export function buildHair(B: BodyBuckets, head: Head, C: Palette, look: FullAppe
       // only gathers its volume lower down (full volume at the top stood out as a separate ledge).
       const drawn = style === 'half_up' ? smoothstep(0.08, 0.5, t) : 1;
       const vol = (crown * 1.2 + 0.005 * clump(u) + flare + flip) * drawn;
-      let r = rTop + (inner ? vol * 0.3 : vol) * (1 - smoothstep(0.82, 1, t) * 0.6);
+      // (A bob hangs close and turns under at its ends; flaring out it read as a lampshade.)
+      const bob = style === 'bob';
+      let r = rTop + (inner ? vol * 0.3 : vol) * (1 - smoothstep(0.82, 1, t) * 0.6) - (bob ? flare * 0.65 * (inner ? 0.3 : 1) : 0);
+      if (bob) r -= 0.007 * smoothstep(0.72, 1, t);
       if (!inner) r += 0.0026 * ridge(u) * smoothstep(0.12, 0.4, t) * (1 - smoothstep(0.9, 1, t) * 0.5);
       // Feather the hanging sheet into the actual scalp surface. A fixed-radius
       // start left a square ledge beside the temples, especially under hats.
