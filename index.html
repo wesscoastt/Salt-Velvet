@@ -43527,6 +43527,7 @@ var Missions = {
         this._defineChapterTen();
         this._defineChapterEleven();
         this._defineChapterTwelve();
+        this._defineOddJobs();
     },
     /* ----------------------------------------------------------------------
        A conversation, shot like one. Give it where people stand and what
@@ -43544,7 +43545,11 @@ var Missions = {
         riley: { name: 'DETECTIVE RILEY', pal: { coat: 0x7a6a52, trousers: 0x4a4238, hat: 0x4a3c2e, tie: 0x2a3a5a, hair: 0x8a6a42, skin: 0xe0b894 } },
         fontaine: { name: 'FONTAINE', pal: { shirtsleeves: true, coat: 0xe8e4da, trousers: 0x3a3a42, noHat: true, skin: 0x5a4030, hair: 0x1a1410, kit: 'heavy' } },
         lena: { name: 'LENA MORETTI', pal: { dress: true, coat: 0x4a3a4a, shirt: 0xe8e2d4, kit: 'shawl', shawl: 0x7a6a7a, hair: 0x8c8c88, skin: 0xd4a57c, noHat: true } },
-        heavy: { name: '', pal: { coat: 0x2a2a2e, trousers: 0x2a2a2e, hat: 0x1c1c1e, skin: 0xb98d67, kit: 'heavy' } }
+        heavy: { name: '', pal: { coat: 0x2a2a2e, trousers: 0x2a2a2e, hat: 0x1c1c1e, skin: 0xb98d67, kit: 'heavy' } },
+        bayard: { name: 'HAROLD BAYARD', pal: { shirtsleeves: true, coat: 0x6a5a48, trousers: 0x3a3a42, hat: 0x4a3c2e, skin: 0xe0b894, hair: 0x8c8c88, kit: 'heavy' } },
+        mae: { name: 'MAE PETTIBONE', pal: { dress: true, coat: 0x8a3a2a, shirt: 0xf0ece0, hair: 0xb5956a, skin: 0xe0b894, noHat: true } },
+        walt: { name: 'WALT KOVAC', pal: { shirtsleeves: true, coat: 0xd8ccb0, trousers: 0x3a4a5a, hat: 0xd8c890, kit: 'straw', skin: 0xd4a57c, hair: 0x6b4a2c } },
+        pruitt: { name: 'ADELINE PRUITT', pal: { dress: true, coat: 0x3a2a3a, shirt: 0xe8e2d4, kit: 'shawl', shawl: 0x6a5a6a, hair: 0xc8c8c4, skin: 0xe0b894, noHat: true } }
     },
     _castAt: function (key, x, z, fx, fz, extra) {
         var C = this.CAST[key], o = { name: C.name, pal: C.pal, at: [x, z], face: [fx, fz] }, k;
@@ -43614,6 +43619,111 @@ var Missions = {
         var t = SV.util.clamp(((x - g[0]) * dx + (z - g[1]) * dz) / L2, 0, 1);
         return [g[0] + dx * t, g[1] + dz * t];
     },
+    /* ---------------------------------------------------------------- odd jobs ---
+       Strangers in the new districts. Not in ORDER: started from their markers (OddJobs). */
+    _defineOddJobs: function () {
+        var self = this, C = function (k, x, z, fx, fz, e) { return self._castAt(k, x, z, fx, fz, e); };
+        /* a giver stands at G; Vinny comes up beside; the marker glows a step away */
+        var meet = function (key, G, lines, card, sub) {
+            var V = [G[0] - 2.2, G[1] + 2.2];
+            return self._scene({ card: card, sub: sub, vinny: { at: V, face: G }, cast: [C(key, G[0], G[1], V[0], V[1])], lines: lines });
+        };
+        var ring = function (c, r) { var o = [], k; for (k = 0; k < 5; k++) { var a = k / 5 * Math.PI * 2 + 0.4; o.push(self._clear(c[0] + Math.cos(a) * r, c[1] + Math.sin(a) * r, 1.2)); } return o; };
+
+        /* -- SCRAP VALUE: Pelican Island -- */
+        var BY = this._clear(252, -552, 2), BF = this._clear(640, -728, 2.5);
+        this.JOBS.x_scrap_value = {
+            id: 'x_scrap_value', number: 0, chapter: 'ODD JOB \u00b7 PELICAN ISLAND', name: 'SCRAP VALUE', odd: true,
+            giver: 'HAROLD BAYARD', marker: [BY[0] + 3, BY[1]],
+            brief: 'Harold Bayard bought three dead Navy ships for scrap. Maldera\u2019s boys got to the brass first.',
+            pay: 300,
+            opening: meet('bayard', BY, [
+                ['HAROLD BAYARD', 'You\u2019re Moretti. Good. I need a man who can lift things and forget things.'],
+                ['VINCENT MORETTI', 'Which things?'],
+                ['HAROLD BAYARD', 'The Navy sold me three of those dead ships for scrap. Then the other Navy said I couldn\u2019t touch \u2019em. Then Maldera\u2019s boys touched \u2019em.'],
+                ['HAROLD BAYARD', 'Eighty pounds of bridge brass, stacked on the beach by the fleet sign, waiting on a truck. Go explain the free market.']
+            ], 'ODD JOB', 'SCRAP VALUE'),
+            steps: [
+                { type: 'fight', text: 'MALDERA\u2019S SCRAPPERS ON THE BEACH', sub: 'Clear {the beach} by the reserve fleet sign.', at: BF, radius: 45, spawns: ring(BF, 16) },
+                { type: 'reach', text: 'BRING THE BRASS TO BAYARD', sub: 'Take the brass back to {Bayard\u2019s yard}.', at: BY, radius: 7,
+                  scene: meet('bayard', BY, [
+                      ['HAROLD BAYARD', 'Look at that. Pure Navy brass. You know what the government paid for it?'],
+                      ['VINCENT MORETTI', 'No.'],
+                      ['HAROLD BAYARD', 'Neither does the government. Nobody kept the receipt. Three hundred - and you never saw my yard.']
+                  ]) }
+            ]
+        };
+
+        /* -- LAST CALL: the Dead Mullet, Bolivar -- */
+        var MU = this._clear(2700, -795, 2), MF = this._clear(2700, -818, 2.5);
+        this.JOBS.x_last_call = {
+            id: 'x_last_call', number: 0, chapter: 'ODD JOB \u00b7 BOLIVAR', name: 'LAST CALL', odd: true,
+            giver: 'MAE PETTIBONE', marker: [MU[0] + 3, MU[1]],
+            brief: 'Mae Pettibone\u2019s bar has a roughneck problem. One of the roughnecks is the sheriff.',
+            pay: 250,
+            opening: meet('mae', MU, [
+                ['MAE PETTIBONE', 'You the fella from the island? Earl said you might come by. Earl says a lot of things on the radio.'],
+                ['MAE PETTIBONE', 'Three roughnecks from Bayport drank my bar dry, broke my jukebox, and said they\u2019d be back for the waitress.'],
+                ['VINCENT MORETTI', 'Call the sheriff.'],
+                ['MAE PETTIBONE', 'Honey, the sheriff is one of the three. That\u2019s them pulling in now.']
+            ], 'ODD JOB', 'LAST CALL'),
+            steps: [
+                { type: 'fight', text: 'THE BAYPORT BOYS ARE BACK', sub: 'Run {the roughnecks} out of the Dead Mullet.', at: MF, radius: 45, spawns: ring(MF, 15) },
+                { type: 'reach', text: 'SEE MAE', sub: 'Go back to {Mae} at the door.', at: MU, radius: 7,
+                  scene: meet('mae', MU, [
+                      ['MAE PETTIBONE', 'Jukebox is still broke, but the room\u2019s a lot quieter.'],
+                      ['MAE PETTIBONE', 'Drinks are on the house. The house is very cheap. Here\u2019s two-fifty, and a free beer you should not drink.']
+                  ]) }
+            ]
+        };
+
+        /* -- BACK FORTY: Hickory Bend -- */
+        var WK = this._clear(-2362, -1522, 2), WF = this._clear(-2600, -2185, 2.5);
+        this.JOBS.x_back_forty = {
+            id: 'x_back_forty', number: 0, chapter: 'ODD JOB \u00b7 HICKORY BEND', name: 'BACK FORTY', odd: true,
+            giver: 'WALT KOVAC', marker: [WK[0] + 3, WK[1]],
+            brief: 'Somebody is bleeding oil off Walt Kovac\u2019s lease, a barrel a night. He has a guess who.',
+            pay: 250,
+            opening: meet('walt', WK, [
+                ['WALT KOVAC', 'Somebody\u2019s been bleeding oil off my lease. A barrel a night. Like a mouse with a pickup truck.'],
+                ['WALT KOVAC', 'Last week Bayport Chemical sent a man to buy my land. Polite fella. Clean hat.'],
+                ['VINCENT MORETTI', 'And now the oil goes missing.'],
+                ['WALT KOVAC', 'End of Farm Road Twenty-Oh-Four, past the rice. They come at dusk. I\u2019d go myself, but my wife hid the shotgun.']
+            ], 'ODD JOB', 'BACK FORTY'),
+            steps: [
+                { type: 'fight', text: 'THE MEN AT THE WELLHEAD', sub: 'Stop {the thieves} at the end of Farm Road 2004.', at: WF, radius: 45, spawns: ring(WF, 16) },
+                { type: 'reach', text: 'BACK TO WALT', sub: 'Go back to {Walt Kovac}\u2019s farm.', at: WK, radius: 7,
+                  scene: meet('walt', WK, [
+                      ['WALT KOVAC', 'Bayport men. Clean hats, every one of \u2019em.'],
+                      ['WALT KOVAC', 'Big Earl says never trust a clean hat at a cattle auction. I say never trust one anywhere. Two-fifty. Don\u2019t tell my wife.']
+                  ]) }
+            ]
+        };
+
+        /* -- THE WIDOW'S PORCH: the East End -- */
+        var AP = this._clear(700, 132, 2), AF = this._clear(860, 172, 2.5);
+        this.JOBS.x_widows_porch = {
+            id: 'x_widows_porch', number: 0, chapter: 'ODD JOB \u00b7 THE EAST END', name: 'THE WIDOW\u2019S PORCH', odd: true,
+            giver: 'ADELINE PRUITT', marker: [AP[0] + 3, AP[1]],
+            brief: 'Hollis Homes wants every widow on Avenue L to sell. Mrs. Pruitt has declined, and her porch has paid for it.',
+            pay: 300,
+            opening: meet('pruitt', AP, [
+                ['ADELINE PRUITT', 'Young man. Three gentlemen from Hollis Homes have called on every widow on Avenue L.'],
+                ['ADELINE PRUITT', 'This morning they told me my porch was a fire hazard. Then they set it on fire to prove it.'],
+                ['VINCENT MORETTI', 'Where are they now?'],
+                ['ADELINE PRUITT', 'At Sacred Heart, making Father Doyle an offer for the rectory. Do hurry. He\u2019s very easily persuaded.']
+            ], 'ODD JOB', 'THE WIDOW\u2019S PORCH'),
+            steps: [
+                { type: 'fight', text: 'HOLLIS HOMES AT SACRED HEART', sub: 'Run {the Hollis men} off the church steps.', at: AF, radius: 45, spawns: ring(AF, 14) },
+                { type: 'reach', text: 'BACK TO MRS. PRUITT', sub: 'Go back to {Mrs. Pruitt} on Avenue L.', at: AP, radius: 7,
+                  scene: meet('pruitt', AP, [
+                      ['ADELINE PRUITT', 'My late husband would have shot them himself. He was a terrible shot, so I\u2019m glad it was you.'],
+                      ['ADELINE PRUITT', 'Three hundred dollars. It was for the porch. I find I\u2019ve gone off porches.']
+                  ]) }
+            ]
+        };
+    },
+
     _defineChapterTwo: function () {
         var self = this, C = function (k, x, z, fx, fz, e) { return self._castAt(k, x, z, fx, fz, e); };
         var DON = [288, -58];
@@ -46732,6 +46842,48 @@ var Missions = {
 };
 
 SV.registerModule('missions', Missions);
+
+/* ------------------------------------------------------------------ odd jobs ---
+   A glowing marker where each stranger waits; on foot, with nothing else on, PRESS E. */
+var OddJobs = {
+    list: [],
+    init: function () {
+        var J = Missions.JOBS, k;
+        var mat = new THREE.MeshBasicMaterial({ color: 0xffb04a, transparent: true, opacity: 0.42, depthWrite: false, side: THREE.DoubleSide });
+        for (k in J) {
+            if (!J.hasOwnProperty(k) || !J[k].odd) { continue; }
+            var m = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.1, 2.2, 20, 1, true), mat);
+            m.position.set(J[k].marker[0], 1.1, J[k].marker[1]);
+            World.scene.add(m);
+            this.list.push({ id: k, job: J[k], m: m });
+            if (typeof UI !== 'undefined' && UI.POI) { UI.POI.push([J[k].marker[0], J[k].marker[1], 'star', 'ODD JOB \u00b7 ' + J[k].name]); }
+        }
+    },
+    update: function (dt) {
+        if (!dt) { return; }
+        this._t = (this._t || 0) + dt;
+        var P = Player.pos, label = '', hit = null, i;
+        var running = Missions.state === 'running';
+        var free = !running && !Missions.talking && !(typeof Cinema !== 'undefined' && Cinema.playing) && !Player.driving && !Player.isDead();
+        for (i = 0; i < this.list.length; i++) {
+            var o = this.list[i], done = Missions.completed.indexOf(o.id) >= 0;
+            o.m.visible = !done && !running;
+            o.m.position.y = 1.1 + Math.sin(this._t * 2 + i) * 0.12;
+            if (done || !free) { continue; }
+            var dx = P.x - o.job.marker[0], dz = P.z - o.job.marker[1];
+            if (dx * dx + dz * dz < 3.2 * 3.2) { hit = o; label = 'ODD JOB \u00b7 ' + o.job.name + '  \u00b7  PRESS ' + (Input.say ? Input.say('interact') : 'E'); }
+        }
+        if (label !== (this._offered || '')) { this._offered = label; SV.bus.emit('vehicle:prompt', label); }
+        if (hit && Input.pressed('interact')) {
+            Input.eat('interact');
+            this._offered = ''; SV.bus.emit('vehicle:prompt', '');
+            Missions.start(hit.id);
+        }
+    },
+    serialize: function () { return {}; },
+    deserialize: function () {}
+};
+SV.registerModule('oddjobs', OddJobs);
 
 
 /* ===== 62b_phones.js ===== */
