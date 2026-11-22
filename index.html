@@ -13006,7 +13006,7 @@ var Districts = {
        there is open water to swim in - the old bounds stopped at the shore,
        which meant you could never actually get into the Gulf. Past this is
        an invisible wall, the way GTA handles the same problem. */
-    BOUNDS: { minX: -7300, maxX: 1700, minZ: -2700, maxZ: 900 },
+    BOUNDS: { minX: -7300, maxX: 3650, minZ: -2700, maxZ: 900 },
     /* the land itself, for anything that needs the old figure */
     ISLAND_BOUNDS: { minX: -7050, maxX: 560, minZ: -500, maxZ: 450 },
     /* The county across West Bay. It was built straight west of the island,
@@ -13291,6 +13291,14 @@ var Districts = {
             x: 795, z: 160, w: 530, d: 340,
             style: 'house', hmin: 7, hmax: 10,
             palette: { wall: 0xe8dcb8, roofIdx: 0, accentIdx: 0 },
+            heroes: [], built: true
+        },
+        {
+            id: 'bolivar', name: 'BOLIVAR',
+            blurb: 'A lighthouse, a free ferry and twenty miles of beach houses on stilts owned by men who swear they have never heard of you. Last call is whenever the bartender\'s wife says so.',
+            x: 2650, z: -830, w: 1900, d: 500,
+            style: 'stilt', hmin: 4, hmax: 6,
+            palette: { wall: 0xc8d8d0, roofIdx: 2, accentIdx: 2 },
             heroes: [], built: true
         },
         {
@@ -15824,6 +15832,10 @@ var Routes = {
         { name: 'FERRY ROAD', cls: 'street', smooth: false, pts: [[1180, -60], [1195, -130], [1205, -185]] },
         { name: 'EAST BEACH DRIVE', cls: 'street', smooth: true,
           pts: [[1320, 255], [1390, 150], [1400, 40], [1350, -50], [1180, -60]] },
+        /* Bolivar: Highway 87 from the ferry landing away up the peninsula, the lighthouse lane */
+        { name: 'HIGHWAY 87', cls: 'rural', smooth: true,
+          pts: [[1745, -636], [1850, -662], [2100, -690], [2600, -770], [3200, -870], [3560, -935]] },
+        { name: 'LIGHTHOUSE ROAD', cls: 'dirt', smooth: false, pts: [[1880, -667], [1880, -760]] },
         { name: 'THE CAUSEWAY', cls: 'highway', bridge: true, smooth: false,
           pts: [[-880, -40], [-880, -440], [-880, -1240], [-880, -1350]] }
     ],
@@ -19018,6 +19030,13 @@ var City = {
         /* and on north, past the edge of the map, into Texas */
         [-7600, -2700]
     ],
+    /* the Bolivar Peninsula across Bolivar Roads: Gulf beach on the south side, East Bay on the north */
+    BOLIVAR_SHAPE: [
+        [1700, -640], [1800, -600], [2100, -620], [2600, -700], [3200, -800], [3600, -860],
+        [3600, -1100], [3200, -1060], [2600, -960], [2100, -880], [1800, -840], [1690, -760]
+    ],
+    /* its bay shore and the tip, for the riprap - the Gulf side is beach */
+    BOLIVAR_BAY: [[3600, -1100], [3200, -1060], [2600, -960], [2100, -880], [1800, -840], [1690, -760], [1700, -640]],
     /* Pelican Island, across the channel north of the harbour: dredge spoil on an old reef */
     PELICAN_SHAPE: [
         [220, -450], [420, -440], [640, -448], [860, -470], [980, -520], [1010, -600], [960, -690],
@@ -19037,6 +19056,7 @@ var City = {
         this._shapeMesh(this.ISLAND_SHAPE, 0, 0x767656, 'ISLAND');
         this._shapeMesh(this.MAINLAND_SHAPE, 0, 0x6e6f52, 'MAINLAND');
         this._shapeMesh(this.PELICAN_SHAPE, 0, 0x7a785c, 'PELICAN');
+        this._shapeMesh(this.BOLIVAR_SHAPE, 0, 0x767656, 'BOLIVAR');
 
         this._seafront();
 
@@ -19311,6 +19331,7 @@ var City = {
         var keep = this._rngState;
         this._riprapOn(this.PELICAN_SHAPE, 884455);
         this._riprapOn(this.EAST_COAST, 884466, -1, -1, true);
+        this._riprapOn(this.BOLIVAR_BAY, 884477, -1, -1, true);
         this._dryStone = false;
         this._rngState = keep;
     },
@@ -19432,7 +19453,7 @@ var City = {
     },
 
     _onLand: function (x, z) {
-        return this._inPoly(x, z, this.ISLAND_SHAPE) || this._inPoly(x, z, this.MAINLAND_SHAPE) || this._inPoly(x, z, this.PELICAN_SHAPE);
+        return this._inPoly(x, z, this.ISLAND_SHAPE) || this._inPoly(x, z, this.MAINLAND_SHAPE) || this._inPoly(x, z, this.PELICAN_SHAPE) || this._inPoly(x, z, this.BOLIVAR_SHAPE);
     },
     _inPoly: function (x, z, poly) {
         var n = poly.length, c = false, i, j = n - 1;
@@ -23450,6 +23471,7 @@ var Water = {
         if (this._inside(x, z, City.ISLAND_SHAPE)) { return false; }
         if (this._inside(x, z, City.MAINLAND_SHAPE)) { return false; }
         if (City.PELICAN_SHAPE && this._inside(x, z, City.PELICAN_SHAPE)) { return false; }
+        if (City.BOLIVAR_SHAPE && this._inside(x, z, City.BOLIVAR_SHAPE)) { return false; }
         /* the pier's neck and T-head are decks at walking height */
         if (x > 243 && x < 257 && z > 385 && z < 477) { return false; }
         var di, D = this.DECKS;
@@ -23477,7 +23499,7 @@ var Water = {
     /* the nearest point on dry land, for climbing out */
     nearestShore: function (x, z) {
         if (typeof City === 'undefined') { return null; }
-        var best = null, bd = 1e9, S = [City.ISLAND_SHAPE, City.MAINLAND_SHAPE, City.PELICAN_SHAPE], si, pts;
+        var best = null, bd = 1e9, S = [City.ISLAND_SHAPE, City.MAINLAND_SHAPE, City.PELICAN_SHAPE, City.BOLIVAR_SHAPE], si, pts;
         var i, a, b, t, cx, cz, dx, dz, len2, d;
         for (si = 0; si < S.length; si++) {
         pts = S[si];
@@ -23682,7 +23704,7 @@ var Ocean = {
 
     build: function () {
         var self = this;
-        this._shapes = [City.ISLAND_SHAPE, City.MAINLAND_SHAPE, City.PELICAN_SHAPE];
+        this._shapes = [City.ISLAND_SHAPE, City.MAINLAND_SHAPE, City.PELICAN_SHAPE, City.BOLIVAR_SHAPE];
         this.washPts = [];
         var k;
         for (k = 0; k < this._shapes.length; k++) { this._shelf(this._shapes[k], k); }
@@ -23776,7 +23798,7 @@ var Ocean = {
 
     /* distance from a point to the island or mainland outline */
     _coastDist: function (x, z) {
-        var best = 1e9, S = this._shapes || [City.ISLAND_SHAPE, City.MAINLAND_SHAPE, City.PELICAN_SHAPE], k, i, a, b;
+        var best = 1e9, S = this._shapes || [City.ISLAND_SHAPE, City.MAINLAND_SHAPE, City.PELICAN_SHAPE, City.BOLIVAR_SHAPE], k, i, a, b;
         for (k = 0; k < S.length; k++) {
             var P = S[k];
             for (i = 0; i < P.length; i++) {
@@ -23814,7 +23836,7 @@ var Ocean = {
         var dep = new Float32Array(n), land = new Float32Array(n);
         for (i = 0; i < n; i++) {
             var wx = pos.getX(i) + OX, wz = pos.getZ(i) + OZ;
-            var onLand = City._inPoly(wx, wz, City.ISLAND_SHAPE) || City._inPoly(wx, wz, City.MAINLAND_SHAPE) || City._inPoly(wx, wz, City.PELICAN_SHAPE);
+            var onLand = City._inPoly(wx, wz, City.ISLAND_SHAPE) || City._inPoly(wx, wz, City.MAINLAND_SHAPE) || City._inPoly(wx, wz, City.PELICAN_SHAPE) || City._inPoly(wx, wz, City.BOLIVAR_SHAPE);
             land[i] = onLand ? 1 : 0;
             var d = onLand ? 0 : this._coastDist(wx, wz);
             dep[i] = Math.min(1, Math.pow(d / 320, 0.6));
@@ -27795,13 +27817,126 @@ var Landmarks = {
     /* ================================================================ BUILD */
     build: function () {
         var names = ['_pleasurePier', '_flagship', '_seawallStrip', '_beachSide', '_gulfQueen', '_downtown', '_trapani',
-                     '_waterfront', '_government', '_mainland', '_hospital', '_galveston', '_renames', '_hotelSigns', '_cadiz', '_fishCamps', '_midIsland', '_westEnd', '_pelican', '_eastEnd'], i;
+                     '_waterfront', '_government', '_mainland', '_hospital', '_galveston', '_renames', '_hotelSigns', '_cadiz', '_fishCamps', '_midIsland', '_westEnd', '_pelican', '_eastEnd', '_bolivar'], i;
         for (i = 0; i < names.length; i++) {
             try { this[names[i]](); } catch (e) { if (window.console) { console.warn('landmarks ' + names[i], e); } }
         }
         this._makeBulbs();
         this._buoys();
     },
+    /* ---- Bolivar ------------------------------------------------------------------ */
+    _bolivar: function () {
+        var keepRng = City._rngState;
+        City._seed(87087);
+        var self = this, k, x, z, hh = function (a, b, n) { return City._hh(a, b, n); };
+        var lerpZ = function (P, x) { var q; for (q = 1; q < P.length; q++) { if (x <= P[q][0]) { return P[q - 1][1] + (P[q][1] - P[q - 1][1]) * (x - P[q - 1][0]) / (P[q][0] - P[q - 1][0]); } } return P[P.length - 1][1]; };
+        var GULF = [[1700, -640], [1800, -600], [2100, -620], [2600, -700], [3200, -800], [3600, -860]];
+        var ROAD = [[1745, -636], [1850, -662], [2100, -690], [2600, -770], [3200, -870], [3560, -935]];
+
+        /* -- the beach down the Gulf side -- */
+        City._shapeMesh([[1700, -640], [1800, -600], [2100, -620], [2600, -700], [3200, -800], [3600, -860],
+                         [3600, -882], [3200, -822], [2600, -722], [2100, -642], [1800, -622], [1712, -652]], 0.06, City.SHARED.sand, 'BOLIVARBEACH');
+
+        /* -- Port Bolivar: the ferry slip, the booth, the line of cars -- */
+        this.deck(1739, 1751, -626, -586);
+        this.box(0.3, 1.1, 40, 1738.6, 0.22, -606, 0xe8e2d4, { surface: 'wood' });
+        this.box(0.3, 1.1, 40, 1751.4, 0.22, -606, 0xe8e2d4, { surface: 'wood' });
+        this.box(3, 3, 3, 1760, 0, -625, 0xe8dcc0, { surface: 'wood' });
+        this.sign(['PORT BOLIVAR', 'FERRY TO GALVESTON \u00b7 FREE'], { x: 1760, y: 3.8, z: -623.45, yaw: 0, w: 4.6, h: 1.2, fg: '#ffe08a', fg2: '#8fe8ff' });
+        var CARS = [0xc8302a, 0xe8dcb8, 0x2a6a8a, 0x3a5a3a, 0xd8c060, 0x7a2a2a, 0x8a9aa8];
+        for (k = 0; k < 4; k++) { this.box(1.9, 1.5, 4.6, 1776 + k * 6.5, 0, -628, CARS[k % CARS.length], { surface: 'metal', rotY: Math.PI / 2 + 0.2 }); }
+        this.poi(1745, -630, 'dock', 'PORT BOLIVAR FERRY');
+        /* the boat: out of the East End slip, across the Roads, into Port Bolivar */
+        this.anims.push({ kind: 'ferry', quiet: true, pts: [[1205, -262], [1205, -320], [1520, -470], [1745, -575]], t: 0.3 });
+
+        /* -- the Point Bolivar light: a black iron tower, the gallery, the lantern; the keepers' houses -- */
+        var LX = 1880, LZ = 785 * -1;
+        City._staticMesh(new THREE.CylinderGeometry(2.1, 3.4, 34, 16).translate(0, 17, 0), this._m(0x1e1e20), LX, 0, LZ, 1, 1, 1, 0, 0, 0, 'metal', true);
+        World.colliders.push({ box: new THREE.Box3(new THREE.Vector3(LX - 2.8, 0, LZ - 2.8), new THREE.Vector3(LX + 2.8, 34, LZ + 2.8)), tall: true });
+        this.cyl(3.2, 0.4, LX, 34, LZ, 0x2a2a2a, 16, 'metal', false);
+        this.cyl(1.7, 3, LX, 34.4, LZ, 0xf2e8b0, 12, 'metal', false);
+        this.cone(2, 1.8, LX, 37.4, LZ, 0x2a2a2a, 12);
+        this.deco(0.2, 1.4, 0.2, LX, 39.2, LZ, 0x2a2a2a);
+        for (k = 0; k < 2; k++) {
+            this.box(10, 6, 9, LX + 22, 1.2, LZ + 8 - k * 22, 0xf2efe6, { surface: 'wood' });
+            this.box(10, 1.2, 9, LX + 22, 0, LZ + 8 - k * 22, 0x8a5a4a, { surface: 'brick' });
+            City._winJob(10, 6, 9, LX + 22, 1.2, LZ + 8 - k * 22);
+            City._gable(LX + 22, 7.2, LZ + 8 - k * 22, 10.8, 9.8, 2.4, 0x7a3a2c);
+        }
+        this.sign(['POINT BOLIVAR LIGHT', 'EST. 1872 \u00b7 DARK SINCE 1933'], { x: 1890, y: 2, z: -705, yaw: 0, w: 5, h: 1.3, fg: '#2a2a28', fg2: '#7a1e22', bg: '#ece4d0', noBack: true, day: 0.9 });
+        this.deco(0.2, 2, 0.2, 1887.6, 0, -705.1, 0x3a3a38); this.deco(0.2, 2, 0.2, 1892.4, 0, -705.1, 0x3a3a38);
+        this.poi(LX, LZ, 'star', 'POINT BOLIVAR LIGHT');
+
+        /* -- Fort Travis: the battery in the dunes, guns to the Gulf -- */
+        var FX = 2040, FZ = -725;
+        this.box(70, 5, 24, FX, 0, FZ, 0xb8ad8a, { surface: 'sand' });
+        this.deco(66, 0.4, 20, FX, 5, FZ, 0x7a8a4a);
+        this.box(56, 4.4, 0.6, FX, 0, FZ - 12.3, 0xb8b2a4, { surface: 'concrete' });
+        for (k = 0; k < 3; k++) { this.deco(3, 3, 0.1, FX - 18 + k * 18, 0, FZ - 12.65, 0x1c1c1e); }
+        for (k = -1; k <= 1; k += 2) {
+            this.cyl(5.5, 0.8, FX + k * 20, 4.6, FZ + 2, 0xb8b2a4, 18, 'concrete', false);
+            City._staticMesh(new THREE.CylinderGeometry(0.3, 0.42, 10, 12).translate(0, 5, 0), this._m(0x4a4e4c), FX + k * 20, 6.4, FZ + 2, 1, 1, 1, Math.PI / 2 - 0.15, 0, 0, 'metal', true);
+        }
+        this.sign(['FORT TRAVIS', 'U.S. ARMY \u00b7 KEEP OFF THE BATTERY'], { x: FX, y: 2.2, z: FZ + 16, yaw: 0, w: 5.6, h: 1.4, fg: '#3a3a38', fg2: '#7a1e22', bg: '#d8d0c0', edge: '#3a3a38', noBack: true, day: 0.9 });
+        this.poi(FX, FZ, 'gov', 'FORT TRAVIS');
+
+        /* -- Crystal Beach: stilt houses between the highway and the Gulf, a few on the bay side -- */
+        var PAINT = [0x9fcfc0, 0xe8b8b8, 0xe6d48a, 0xa8c4d8, 0xf0e6c8, 0xb8d8b8, 0xe0a088, 0xeeeae0], ROOF = City.HOUSE_ROOF, made = 0;
+        var stilt = function (px, pz, sd) {
+            var w = 8 + Math.floor(hh(px, pz, 21) * 4), d = 8 + Math.floor(hh(px, pz, 22) * 3), H = 3.2, q;
+            for (q = 0; q < 4; q++) {
+                var qx = px + (q % 2 ? 1 : -1) * (w / 2 + 1), qz = pz + (q < 2 ? 1 : -1) * (d / 2 + 1);
+                if (!City._onLand(qx, qz) || Roads.onRoad(qx, qz)) { return; }
+            }
+            if (World.pointBlocked(px, pz, Math.max(w, d) / 2 + 1)) { return; }
+            var paint = PAINT[Math.floor(hh(px, pz, 23) * PAINT.length)], roof = ROOF[Math.floor(hh(px, pz, 24) * ROOF.length)];
+            for (q = 0; q < 6; q++) { self.deco(0.35, H, 0.35, px + (q % 3 - 1) * (w / 2 - 0.3), 0, pz + (q < 3 ? 1 : -1) * (d / 2 - 0.3), 0x6a5a48); }
+            self.box(w, 3.6, d, px, H, pz, paint, { surface: 'wood' });
+            City._winJob(w, 3.6, d, px, H, pz);
+            City._gable(px, H + 3.6, pz, w + 0.8, d + 0.8, 2.2, roof);
+            /* the deck on the Gulf side and the stair down */
+            self.deco(w, 0.2, 3, px, H - 0.2, pz + sd * (d / 2 + 1.5), 0x8a6a4a);
+            self.deco(w, 0.8, 0.08, px, H, pz + sd * (d / 2 + 2.96), 0xeeeae0);
+            City._staticMesh(new THREE.BoxGeometry(1.1, 0.2, 5), self._m(0x8a6a4a), px + w / 2 + 0.8, H / 2, pz, 1, 1, 1, 0.6, 0, 0, 'wood', false);
+            made++;
+        };
+        for (x = 2300; x <= 3450; x += 21) {
+            var rz = lerpZ(ROAD, x), gz = lerpZ(GULF, x);
+            if (gz - rz > 40) { stilt(x + (hh(x, 1, 25) - 0.5) * 4, rz + 22, 1); }
+            if (hh(x, 2, 26) < 0.55 && Math.abs(x - 2480) > 20 && Math.abs(x - 2700) > 24) { stilt(x + (hh(x, 3, 27) - 0.5) * 4, rz - 24, -1); }
+        }
+        /* the honky-tonk, the bait shop, the general store on the highway */
+        this.box(18, 5, 12, 2700, 0, lerpZ(ROAD, 2700) - 20, 0x7a5a3a, { surface: 'wood' });
+        City._gable(2700, 5, lerpZ(ROAD, 2700) - 20, 19, 13, 2, 0x5a5e62);
+        this.sign(['THE DEAD MULLET', 'BEER \u00b7 DANCING \u00b7 FIGHTS EXTRA'], { x: 2700, y: 6.6, z: lerpZ(ROAD, 2700) - 13.9, yaw: 0, w: 7, h: 1.8, fg: '#ff4a6a', fg2: '#7affd8', bg: '#14141a' });
+        this.poi(2700, lerpZ(ROAD, 2700) - 20, 'shop', 'THE DEAD MULLET');
+        this.box(12, 4, 9, 2480, 0, lerpZ(ROAD, 2480) - 18, 0xe8dcc0, { surface: 'wood' });
+        City._gable(2480, 4, lerpZ(ROAD, 2480) - 18, 13, 10, 1.6, 0x7a3a2c);
+        this.sign(['CRYSTAL BEACH', 'GENERAL STORE \u00b7 BAIT \u00b7 ICE'], { x: 2480, y: 5.2, z: lerpZ(ROAD, 2480) - 13.4, yaw: 0, w: 5.6, h: 1.4, fg: '#2a6a8a', fg2: '#c8302a', bg: '#f4ecd4', day: 0.8 });
+        this.poi(2480, lerpZ(ROAD, 2480) - 18, 'shop', 'CRYSTAL BEACH');
+
+        /* -- marsh grass round the bay shore -- */
+        for (k = 0; k < 160; k++) {
+            x = 1760 + City._rand(0, 1780);
+            z = lerpZ([[1690, -760], [1800, -840], [2100, -880], [2600, -960], [3200, -1060], [3600, -1100]], x) + City._rand(8, 40);
+            if (!City._onLand(x, z) || Roads.onRoad(x, z)) { continue; }
+            this.cone(0.5 + City._rand(0, 0.5), 0.9 + City._rand(0, 0.8), x, 0, z, k % 2 ? 0x7a8a4a : 0x8a9456, 5);
+        }
+
+        /* -- the North Jetty, across the Roads from the south one -- */
+        var jx = 1805, jz = -596, ux = 0.55, uz = 0.835;
+        for (k = 0; k < 95; k++) {
+            x = jx + ux * k * 4; z = jz + uz * k * 4;
+            City._rock(x + City._rand(-1.5, 1.5), -0.6, z + City._rand(-1.5, 1.5), City._rand(3, 4.4), City._rand(2, 2.8), City._rand(3, 4.4), City.STONES[k % 5]);
+            City._rock(x + uz * 2.6, -0.9, z - ux * 2.6, City._rand(2.4, 3.4), 2, City._rand(2.4, 3.4), City.STONES[(k + 2) % 5]);
+            City._rock(x - uz * 2.6, -0.9, z + ux * 2.6, City._rand(2.4, 3.4), 2, City._rand(2.4, 3.4), City.STONES[(k + 4) % 5]);
+        }
+        this.cyl(1.2, 7, jx + ux * 380, 0.5, jz + uz * 380, 0xc8302a, 10, 'concrete', false);
+
+        City._rngState = keepRng;
+        this._bolivarMade = made;
+    },
+
     /* ---- the East End and East Beach ------------------------------------------ */
     _eastEnd: function () {
         /* its own random sequence: nothing built after this moves */
@@ -28003,14 +28138,7 @@ var Landmarks = {
         this.box(3, 3, 3, 1222, 0, -178, 0xe8dcc0, { surface: 'wood' });
         this.sign(['BOLIVAR FERRY', 'FREE \u00b7 STATE HIGHWAY DEPT.'], { x: 1222, y: 3.8, z: -176.45, yaw: 0, w: 4.6, h: 1.2, fg: '#ffe08a', fg2: '#8fe8ff' });
         for (k = 0; k < 5; k++) { this.box(1.9, 1.5, 4.6, 1212, 0, -160 + k * 7, CARS[(k * 3) % CARS.length], { surface: 'metal' }); }
-        /* the ferry, in her slip */
-        this.box(16, 2.6, 44, 1205, -1.4, -272, 0xe8e4da, { surface: 'metal' });
-        this.deco(16.2, 0.6, 44.2, 1205, -1.6, -272, 0x2a2a2a);
-        this.deco(15, 0.2, 40, 1205, 1.2, -272, 0x6a6a64);
-        this.box(4, 5, 12, 1212, 1.2, -272, 0xf2efe6, { surface: 'metal' });
-        this.deco(4.4, 1.2, 4, 1212, 6.2, -272, 0x2b3a44);
-        this.cyl(0.9, 4, 1212, 6.2, -276, 0x1c1c1e, 10, 'metal', false);
-        this.sign(['R. S. STERLING'], { x: 1213.1, y: 4.4, z: -266, yaw: Math.PI / 2, w: 5, h: 0.9, fg: '#1e2a44', bg: '#f2efe6', noBack: true, day: 0.4, open: [5, 20] });
+        /* the ferry herself sails from here to Port Bolivar - see _bolivar */
         this.poi(1205, -200, 'dock', 'BOLIVAR FERRY');
 
         City._rngState = keepRng;
@@ -30064,7 +30192,7 @@ var Landmarks = {
                 A.m.position.set(ax + (bx - ax) * fr, (typeof Ocean !== 'undefined' && typeof Ocean.Y === 'number') ? Ocean.Y + 0.2 : 0, az + (bz - az) * fr);
                 var goingOut = ph < 0.5;
                 A.m.rotation.y = Math.atan2(bx - ax, bz - az) + (goingOut ? 0 : Math.PI);
-                Landmarks.ferryAt = ph < 0.1 ? 'A' : (ph >= 0.5 && ph < 0.6) ? 'B' : 'sailing';
+                if (!A.quiet) { Landmarks.ferryAt = ph < 0.1 ? 'A' : (ph >= 0.5 && ph < 0.6) ? 'B' : 'sailing'; }
             }
         }
     },
@@ -40865,6 +40993,7 @@ var UI = {
             o.push(this._mmPath(City.ISLAND_SHAPE, X, Z, '#5c5a4a'));
             o.push(this._mmPath(City.MAINLAND_SHAPE, X, Z, '#55523f'));
             o.push(this._mmPath(City.PELICAN_SHAPE, X, Z, '#5c5a4a'));
+            o.push(this._mmPath(City.BOLIVAR_SHAPE, X, Z, '#5c5a4a'));
         }
 
         /* districts, faint */
@@ -41407,7 +41536,7 @@ var UI = {
        that picture sits in an SVG in world coordinates, so panning and
        zooming only moves a view box. Names, pins, the job and Vinny are
        vector on top, resized to the zoom so they stay readable. */
-    MAP_EXT: { minX: -7400, maxX: 1800, minZ: -2700, maxZ: 800 },
+    MAP_EXT: { minX: -7400, maxX: 3700, minZ: -2700, maxZ: 800 },
     _mapBase: function () {
         if (this._mapImg !== undefined) { return this._mapImg; }
         var E = this.MAP_EXT, W = SV.util.isMobile() ? 2560 : 4096;
@@ -41428,7 +41557,7 @@ var UI = {
         var gr = c.createLinearGradient(0, 0, 0, H);
         gr.addColorStop(0, '#0f2a33'); gr.addColorStop(1, '#0b2029');
         c.fillStyle = gr; c.fillRect(0, 0, W, H);
-        var shapes = [City.ISLAND_SHAPE, City.MAINLAND_SHAPE, City.PELICAN_SHAPE], k, s;
+        var shapes = [City.ISLAND_SHAPE, City.MAINLAND_SHAPE, City.PELICAN_SHAPE, City.BOLIVAR_SHAPE], k, s;
         c.lineJoin = 'round';
         var rings = [[70, 'rgba(34,74,82,.55)'], [40, 'rgba(44,94,100,.6)'], [18, 'rgba(70,128,124,.6)'], [7, 'rgba(120,160,140,.55)']];
         for (k = 0; k < rings.length; k++) {
@@ -41553,6 +41682,7 @@ var UI = {
             o.push(this._mmPath(City.ISLAND_SHAPE, function (x) { return x; }, function (z) { return z; }, '#33362c'));
             o.push(this._mmPath(City.MAINLAND_SHAPE, function (x) { return x; }, function (z) { return z; }, '#2f3229'));
             o.push(this._mmPath(City.PELICAN_SHAPE, function (x) { return x; }, function (z) { return z; }, '#33362c'));
+            o.push(this._mmPath(City.BOLIVAR_SHAPE, function (x) { return x; }, function (z) { return z; }, '#33362c'));
         }
         /* street names, along the long roads */
         o.push('<g id="mapStreets">');
