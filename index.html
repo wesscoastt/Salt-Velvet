@@ -27907,13 +27907,111 @@ var Landmarks = {
     /* ================================================================ BUILD */
     build: function () {
         var names = ['_pleasurePier', '_flagship', '_seawallStrip', '_beachSide', '_gulfQueen', '_downtown', '_trapani',
-                     '_waterfront', '_government', '_mainland', '_hospital', '_galveston', '_renames', '_hotelSigns', '_cadiz', '_fishCamps', '_midIsland', '_westEnd', '_pelican', '_eastEnd', '_bolivar', '_hickory', '_billboards'], i;
+                     '_waterfront', '_government', '_mainland', '_hospital', '_galveston', '_renames', '_hotelSigns', '_cadiz', '_fishCamps', '_midIsland', '_westEnd', '_pelican', '_eastEnd', '_bolivar', '_hickory', '_billboards', '_streetGrime'], i;
         for (i = 0; i < names.length; i++) {
             try { this[names[i]](); } catch (e) { if (window.console) { console.warn('landmarks ' + names[i], e); } }
         }
         this._makeBulbs();
         this._buoys();
     },
+    /* ---- street grime: manholes, drains, oil, patches ----------------------------------- */
+    _streetGrime: function () {
+        var Y = 0.13, self = this, made = 0, hh = function (a, b, n) { return City._hh(a, b, n); };
+        var MH = [], ST = [];                         /* manholes and oil: drawn instanced at the end */
+        var O = { solid: false, cast: false, hit: false };
+        var town = function (cls) { return cls === 'arterial' || cls === 'street'; };
+        var paved = function (cls) { return cls !== 'dirt'; };
+        var lay = function (x0, z0, x1, z1, cls, W) {
+            var dx = x1 - x0, dz = z1 - z0, L = Math.sqrt(dx * dx + dz * dz);
+            if (L < 30 || !paved(cls)) { return; }
+            var ux = dx / L, uz = dz / L, nx = uz, nz = -ux, yaw = Math.atan2(dx, dz), t, x, z, h;
+            for (t = 14; t < L - 14; t += 23) {
+                x = x0 + ux * t; z = z0 + uz * t; h = hh(x, z, 61);
+                /* a manhole cover down the middle of a town street, every third or fourth stop */
+                if (town(cls) && h < 0.28) {
+                    var mx = x + nx * (hh(x, z, 62) - 0.5) * W * 0.3, mz = z + nz * (hh(x, z, 62) - 0.5) * W * 0.3;
+                    if (Roads.onRoad(mx, mz)) {
+                        MH.push([mx, mz, hh(x, z, 74) * 6.28]);
+                        made++;
+                    }
+                }
+                /* a drain grate at the kerb */
+                if (town(cls) && h > 0.55) {
+                    var sd = hh(x, z, 63) < 0.5 ? 1 : -1, gx = x + nx * sd * (W / 2 - 0.45), gz = z + nz * sd * (W / 2 - 0.45);
+                    if (Roads.onRoad(gx, gz)) {
+                        self.box(0.5, 0.025, 1.0, gx, Y, gz, 0x252527, { solid: false, cast: false, hit: false, rotY: yaw, surface: 'metal' });
+                        made++;
+                    }
+                }
+                /* oil, where cars sit - toward the kerb, or the middle of a lane */
+                if (hh(x, z, 64) < 0.42) {
+                    var lo = (hh(x, z, 65) - 0.5) * W * 0.7, ox = x + nx * lo, oz = z + nz * lo;
+                    if (Roads.onRoad(ox, oz)) {
+                        ST.push([ox, oz, hh(x, z, 69) * 6.28, 1.4 + hh(x, z, 66) * 2.2, 1.0 + hh(x, z, 67) * 1.6, Math.floor(hh(x, z, 68) * 4)]);
+                        made++;
+                    }
+                }
+                /* a patch where the road was cut and filled */
+                if (hh(x, z, 70) < 0.12) {
+                    var px = x + nx * (hh(x, z, 71) - 0.5) * W * 0.4, pz = z + nz * (hh(x, z, 71) - 0.5) * W * 0.4;
+                    if (Roads.onRoad(px, pz)) {
+                        self.box(2 + hh(x, z, 72) * 3, 0.012, 1.4 + hh(x, z, 73) * 2, px, Y, pz, 0x3a3b3e, { solid: false, cast: false, hit: false, rotY: yaw, surface: 'asphalt' });
+                        made++;
+                    }
+                }
+            }
+        };
+        var CL = Roads.CLASS, i, k;
+        for (i = 0; i < Roads.SEGMENTS.length; i++) {
+            var g = Roads.SEGMENTS[i], c = CL[g[4]];
+            if (c) { lay(g[0], g[1], g[2], g[3], g[4], c.w); }
+        }
+        if (typeof Routes !== 'undefined') {
+            for (i = 0; i < Routes.LIST.length; i++) {
+                var r = Routes.LIST[i], rc = CL[r.cls], P = r.P || r.pts;
+                if (!rc || r.bridge || !P) { continue; }
+                /* the dense points in ~50 m chords, so a curve still gets its share */
+                var a0 = 0, acc = 0;
+                for (k = 1; k < P.length; k++) {
+                    acc += Math.sqrt((P[k][0] - P[k - 1][0]) * (P[k][0] - P[k - 1][0]) + (P[k][1] - P[k - 1][1]) * (P[k][1] - P[k - 1][1]));
+                    if (acc >= 50 || k === P.length - 1) { lay(P[a0][0], P[a0][1], P[k][0], P[k][1], r.cls, rc.w); a0 = k; acc = 0; }
+                }
+            }
+        }
+        /* the oil: soft blotches from one texture (four variants in its quarters), one draw call */
+        var cv = document.createElement('canvas'); cv.width = cv.height = 256;
+        var g2 = cv.getContext('2d'), q, b;
+        for (q = 0; q < 4; q++) {
+            var ox0 = (q % 2) * 128, oz0 = Math.floor(q / 2) * 128;
+            for (b = 0; b < 7 + q; b++) {
+                var bx = ox0 + 64 + Math.sin(q * 7.3 + b * 2.1) * 30, bz = oz0 + 64 + Math.cos(q * 3.1 + b * 1.7) * 26, br = 16 + ((b * 37 + q * 11) % 22);
+                var gr = g2.createRadialGradient(bx, bz, 0, bx, bz, br);
+                gr.addColorStop(0, 'rgba(14,12,10,0.55)'); gr.addColorStop(0.6, 'rgba(18,16,14,0.32)'); gr.addColorStop(1, 'rgba(20,18,16,0)');
+                g2.fillStyle = gr; g2.beginPath(); g2.arc(bx, bz, br, 0, 6.3); g2.fill();
+            }
+        }
+        var tex = new THREE.CanvasTexture(cv);
+        var mk = function (geo, mat, list, place) {
+            if (!list.length) { return; }
+            var im = new THREE.InstancedMesh(geo, mat, list.length), o = new THREE.Object3D(), k2;
+            for (k2 = 0; k2 < list.length; k2++) { place(o, list[k2]); o.updateMatrix(); im.setMatrixAt(k2, o.matrix); }
+            im.instanceMatrix.needsUpdate = true; im.frustumCulled = false; im.receiveShadow = true;
+            World.scene.add(im);
+        };
+        /* each quarter of the texture is its own blotch: four geometries, uv-shifted */
+        for (q = 0; q < 4; q++) {
+            var pg = new THREE.PlaneGeometry(1, 1); pg.rotateX(-Math.PI / 2);
+            var uv = pg.attributes.uv, u0 = (q % 2) * 0.5, v0 = (1 - Math.floor(q / 2)) * 0.5 - 0.5 + 0.5;
+            for (b = 0; b < uv.count; b++) { uv.setXY(b, u0 + uv.getX(b) * 0.5, (q < 2 ? 0.5 : 0) + uv.getY(b) * 0.5); }
+            var sm = new THREE.MeshLambertMaterial({ map: tex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 });
+            mk(pg, sm, ST.filter(function (e) { return e[5] === q; }), function (o, e) { o.position.set(e[0], Y + 0.004, e[1]); o.rotation.set(0, e[2], 0); o.scale.set(e[3], 1, e[4]); });
+        }
+        /* the covers: round, iron, a little proud of the road */
+        var cg = new THREE.CylinderGeometry(0.46, 0.46, 0.03, 18);
+        mk(cg, new THREE.MeshLambertMaterial({ color: 0x35353a }), MH, function (o, e) { o.position.set(e[0], Y + 0.015, e[1]); o.rotation.set(0, e[2], 0); o.scale.set(1, 1, 1); });
+        this._grimeMade = made;
+    },
+
     /* ---- billboards along the roads out of town -------------------------------------- */
     _billboards: function () {
         var B = [[-905,-200,3.141592653589793,["WELCOME TO PORT HALCYON","PLAYGROUND OF THE GULF \u00b7 PLEASE DRIVE CAREFULLY"],"#f2e6b8","#ffb04a","#1e2a44"],[-862,-1470,-1.5707963267948966,["BAYPORT CHEMICAL","IT\u2019S IN THE WATER. SMILE."],"#f2efe6","#7affd8","#1e3a2a"],[-1450,-62,0,["HOLLIS FOR COUNCIL","HE ALREADY KNOWS WHERE YOU LIVE"],"#ffffff","#ff6a4a","#1e2a44"],[-2900,364,0,["DR. FEENEY\u2019S NERVE TONIC","FOR THE MODERN WORRIER"],"#2a2a28","#7a1e22","#ece4d0"],[-3300,-158,3.141592653589793,["KOOL-KREST HAIR TONIC","HOLDS LIKE A GRUDGE"],"#ffd24a","#e8e4da","#2a1e18"],[-2950,-1578,3.141592653589793,["HOLLIS HOMES FALLOUT SHELTERS","SLEEPS SIX \u00b7 SURVIVES ONE"],"#2a2a28","#c8302a","#e8dcb8"],[-300,-1602,3.141592653589793,["VISIT BEAUTIFUL BOLIVAR","IT\u2019S RIGHT THERE \u00b7 THE FERRY IS FREE"],"#1e2a44","#c8302a","#f4ecd4"],[2350,-708,3.141592653589793,["THE DEAD MULLET \u00b7 2 MILES","BEER \u00b7 DANCING \u00b7 FIGHTS EXTRA"],"#ff4a6a","#7affd8","#14141a"],[1140,-18,3.141592653589793,["WPHY 960 \u00b7 RAPID RAY","ROCK AND ROLL ALL NIGHT \u00b7 YOUR PARENTS HATE IT"],"#ffd24a","#ff6a2a","#121014"],[-902,262,1.5707963267948966,["BIG TEX BURGERS \u00b7 15\u00a2","NO REFUNDS \u00b7 NO QUESTIONS"],"#ffd24a","#ff6a2a","#121014"],[-1900,-60,3.141592653589793,["THE SANTA FE","SEE THE MAINLAND \u00b7 RETURN TICKETS EXTRA"],"#f4ecd4","#d8302a","#1e2a44"]], k, t, self = this, placed = 0;
