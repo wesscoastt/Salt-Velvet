@@ -46885,6 +46885,66 @@ var OddJobs = {
 };
 SV.registerModule('oddjobs', OddJobs);
 
+/* ------------------------------------------------------------------ the Bolivar ferry ---
+   Each end: where the prompt is offered, where you come off, which way you face, the phase of
+   the boat's round trip that has it sitting in that slip. */
+var FerryRide = {
+    ENDS: [
+        { name: 'THE EAST END', at: [1205, -196], out: [1205, -176], yaw: 0, ph: 0.04, to: 'BOLIVAR' },
+        { name: 'PORT BOLIVAR', at: [1745, -620], out: [1756, -642], yaw: 1.81, ph: 0.54, to: 'GALVESTON' }
+    ],
+    busy: false,
+    init: function () {
+        var el = document.createElement('div');
+        el.id = 'ferryFade';
+        el.style.cssText = 'position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;transition:opacity .6s;z-index:60';
+        document.body.appendChild(el);
+        this.el = el;
+    },
+    _boat: function () {
+        if (typeof Landmarks === 'undefined' || !Landmarks.anims) { return null; }
+        var i; for (i = 0; i < Landmarks.anims.length; i++) { if (Landmarks.anims[i].kind === 'ferry' && Landmarks.anims[i].quiet) { return Landmarks.anims[i]; } }
+        return null;
+    },
+    update: function (dt) {
+        if (!dt || this.busy) { return; }
+        var P = Player.driving && Vehicles.active ? Vehicles.active.pos : Player.pos, label = '', hit = -1, i;
+        var ok = !Player.isDead() && !(typeof Cinema !== 'undefined' && Cinema.playing) && !(typeof Missions !== 'undefined' && Missions.talking);
+        for (i = 0; ok && i < this.ENDS.length; i++) {
+            var E = this.ENDS[i], dx = P.x - E.at[0], dz = P.z - E.at[1];
+            if (dx * dx + dz * dz < 14 * 14) { hit = i; label = 'TAKE THE FERRY TO ' + (i === 0 ? 'BOLIVAR' : 'THE EAST END') + '  \u00b7  FREE  \u00b7  PRESS ' + (Input.say ? Input.say('interact') : 'F'); }
+        }
+        if (label !== (this._offered || '')) { this._offered = label; SV.bus.emit('vehicle:prompt', label); }
+        if (hit >= 0 && Input.pressed('interact')) { Input.eat('interact'); this._cross(hit); }
+    },
+    _cross: function (from) {
+        var self = this, D = this.ENDS[1 - from];
+        this.busy = true;
+        this._offered = ''; SV.bus.emit('vehicle:prompt', '');
+        if (this.el) { this.el.style.opacity = '1'; }
+        setTimeout(function () {
+            if (Player.driving && Vehicles.active) {
+                var v = Vehicles.active;
+                v.pos.set(D.out[0], 0, D.out[1]); v.yaw = D.yaw; v.vel.set(0, 0, 0);
+                if (v._updateVisual) { v._updateVisual(0.016, 0); }
+                if (v._updateColliderBox) { v._updateColliderBox(); }
+                Player.pos.copy(v.pos);
+            } else {
+                Player.pos.set(D.out[0], 0, D.out[1]); Player.vel.set(0, 0, 0); Player.yaw = D.yaw;
+            }
+            if (Player.snapCamera) { Player.snapCamera(); }
+            /* the boat is in the slip you just came off */
+            var B = self._boat(); if (B) { B.t = Math.floor(B.t) + D.ph; }
+            if (typeof Sky !== 'undefined') { Sky.dayT = (Sky.dayT + 25) % Sky.DAY_LENGTH; }
+            SV.bus.emit('hud:note', { text: D.name + '.  The ferry is free. The crossing is twenty minutes you will not get back.' });
+            setTimeout(function () { if (self.el) { self.el.style.opacity = '0'; } self.busy = false; }, 500);
+        }, 700);
+    },
+    serialize: function () { return {}; },
+    deserialize: function () {}
+};
+SV.registerModule('ferryride', FerryRide);
+
 
 /* ===== 62b_phones.js ===== */
 /* ==========================================================================
