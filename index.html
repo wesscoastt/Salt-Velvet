@@ -32343,7 +32343,35 @@ var CarModel = {
         out.drv = this._drv;
         out.plates = this._plates;
         out.frame = this._o ? { doorZ: this._o.doorZ, belt: this._o.belt, hw: this._o.W / 2 } : null;
+        var amt = { prewar: 0.8, fifties: 1, flagship: 1, wagon: 0.9, compact: 0.9, pickup: 0.5, van: 0.3, truck: 0.2 }[p] || 0;
+        if (amt && out.frame && out.roofY) { this._warpBody([out.body, out.glass, out.heads, out.tails], amt, out.frame.belt, out.roofY, out.frame.hw); }
         return out;
+    },
+    /* the shoebox fix: see p_cars5 */
+    _warpBody: function (geos, amt, belt, roofY, hw) {
+        var hl = 0, i, j, P;
+        var sm = function (a, b, x) { var t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+        P = geos[0].attributes.position.array;
+        for (j = 2; j < P.length; j += 3) { if (Math.abs(P[j]) > hl) { hl = Math.abs(P[j]); } }
+        if (hl < 1) { return; }
+        var gh = Math.max(0.2, roofY - belt);
+        for (i = 0; i < geos.length; i++) {
+            var g = geos[i];
+            if (!g || !g.attributes || !g.attributes.position) { continue; }
+            P = g.attributes.position.array;
+            for (j = 0; j < P.length; j += 3) {
+                var x = P[j], y = P[j + 1], z = P[j + 2];
+                var ends = sm(0.55, 1, Math.abs(z) / hl), zn = Math.min(1, Math.abs(x) / hw);
+                var k = 1 - amt * 0.18 * Math.pow(zn, 2.6) * ends;
+                if (y > belt) { k *= 1 - amt * 0.13 * Math.min(1.2, (y - belt) / gh); }
+                P[j] = x * k;
+                if (y > roofY - 0.1) { P[j + 1] = y + amt * 0.03 * (1 - zn * zn); }
+                else if (y > 0.6 && y < belt + 0.08) { P[j + 1] = y - amt * 0.05 * ends * ends * sm(0.6, belt + 0.08, y); }
+            }
+            g.attributes.position.needsUpdate = true;
+            if (g.attributes.normal) { g.computeVertexNormals(); }
+            g.computeBoundingSphere(); g.computeBoundingBox();
+        }
     },
 
     /* a seated figure for the driver's seat: one merged, vertex-coloured
