@@ -28150,7 +28150,7 @@ var Landmarks = {
     /* ================================================================ BUILD */
     build: function () {
         var names = ['_pleasurePier', '_flagship', '_seawallStrip', '_beachSide', '_gulfQueen', '_downtown', '_trapani',
-                     '_waterfront', '_government', '_mainland', '_hospital', '_galveston', '_renames', '_hotelSigns', '_cadiz', '_fishCamps', '_midIsland', '_westEnd', '_westDress', '_roadsidePoles', '_crockettDress', '_farWestDress', '_verges', '_pelican', '_eastEnd', '_bolivar', '_hickory', '_billboards', '_streetGrime'], i;
+                     '_waterfront', '_government', '_mainland', '_hospital', '_galveston', '_renames', '_hotelSigns', '_cadiz', '_fishCamps', '_midIsland', '_westEnd', '_westDress', '_roadsidePoles', '_crockettDress', '_farWestDress', '_verges', '_townClutter', '_pelican', '_eastEnd', '_bolivar', '_hickory', '_billboards', '_streetGrime'], i;
         for (i = 0; i < names.length; i++) {
             try { this[names[i]](); } catch (e) { if (window.console) { console.warn('landmarks ' + names[i], e); } }
         }
@@ -29360,6 +29360,137 @@ var Landmarks = {
             flush();
         }
         this.poleCount = placed;
+    },
+    /* a striped awning in its own frame: x along the facade, z out from it, y down from the top
+       edge. Vertex-coloured so the stripes cost two triangles each. */
+    _awningGeo: function (w, cA, cB) {
+        var P = [], C = [], n = Math.max(2, Math.round(w / 0.55)), sw = w / n, i, ca = new THREE.Color(cA), cb = new THREE.Color(cB), c;
+        var D = 1.3, DROP = 0.5, VAL = 0.26;
+        var quad = function (a, b, cc, d, col) {
+            P.push(a[0], a[1], a[2], b[0], b[1], b[2], cc[0], cc[1], cc[2], a[0], a[1], a[2], cc[0], cc[1], cc[2], d[0], d[1], d[2]);
+            var k; for (k = 0; k < 6; k++) { C.push(col.r, col.g, col.b); }
+        };
+        for (i = 0; i < n; i++) {
+            var x0 = -w / 2 + i * sw, x1 = x0 + sw; c = i % 2 ? cb : ca;
+            quad([x0, 0, 0], [x1, 0, 0], [x1, -DROP, D], [x0, -DROP, D], c);                       /* the slope */
+            quad([x0, -DROP, D], [x1, -DROP, D], [x1, -DROP - VAL, D + 0.02], [x0, -DROP - VAL, D + 0.02], c);  /* valance */
+        }
+        /* side flaps */
+        P.push(-w / 2, 0, 0, -w / 2, -DROP, D, -w / 2, -DROP - VAL, D); C.push(ca.r, ca.g, ca.b, ca.r, ca.g, ca.b, ca.r, ca.g, ca.b);
+        P.push(w / 2, 0, 0, w / 2, -DROP - VAL, D, w / 2, -DROP, D); C.push(ca.r, ca.g, ca.b, ca.r, ca.g, ca.b, ca.r, ca.g, ca.b);
+        var g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
+        g.setAttribute('color', new THREE.Float32BufferAttribute(C, 3));
+        g.computeVertexNormals();
+        return g;
+    },
+    _townClutter: function () {
+        /* the street side is found from the colliders, whose index is not built until the world is
+           baked (at build time every window looked free on both sides): run then, once */
+        if (!this._townLater) {
+            var me = this; this._townLater = true;
+            SV.bus.on('world:baked', function () { if (!me._townDone) { me._townDone = true; me._townClutter(); } });
+            return;
+        }
+        if (!World.manifest) { return; }
+        var M = World.manifest, rnd = this._rng(1959 * 7), self = this, cells = {}, CELL = 200, i, k;
+        var cell = function (x, z) {
+            var key = Math.floor(x / CELL) + ',' + Math.floor(z / CELL);
+            if (!cells[key]) { var g = new THREE.Group(); cells[key] = { g: g, K: City._kit(g), S: [] }; }
+            return cells[key];
+        };
+        var onRoad = function (x, z) { return (typeof Roads !== 'undefined' && Roads.onRoad && Roads.onRoad(x, z)) || (typeof Routes !== 'undefined' && Routes.onRoad && Routes.onRoad(x, z)); };
+        /* ---- awnings ---- */
+        var PAIRS = [[0xb8322a, 0xf0ebe0], [0x2e6a48, 0xf0ebe0], [0x2a3a6a, 0xf0ebe0], [0xd8a032, 0xf0ebe0], [0x2a8a8a, 0xf0ebe0], [0x8a2a4a, 0xf0e2c8]];
+        var PLAIN = [0x6a7a4a, 0x8a5a3a, 0x3a4a5a, 0xa8402e];
+        var aw = 0;
+        for (i = 0; i < M.length; i++) {
+            var m = M[i];
+            if (m.color !== 0x3d5561 || m.h < 2 || m.h > 3.4 || m.y > 1.2) { continue; }
+            var alongX = m.d < 0.3, len = alongX ? m.w : m.d;
+            if (len < 2.5 || m.rotY) { continue; }
+            if (rnd() < 0.18) { continue; }                                         /* some shops go without */
+            var nx = alongX ? 0 : 1, nz = alongX ? 1 : 0;
+            /* the street side: the side that is not inside the building */
+            var inA = World.pointBlocked(m.x + nx * 0.9, m.z + nz * 0.9, 0.2, 1.5), inB = World.pointBlocked(m.x - nx * 0.9, m.z - nz * 0.9, 0.2, 1.5);
+            if (inA === inB) { continue; }
+            if (inA) { nx = -nx; nz = -nz; }
+            if (onRoad(m.x + nx * 1.6, m.z + nz * 1.6)) { continue; }
+            var top = m.y + m.h - 0.02, pal = PAIRS[Math.floor(rnd() * PAIRS.length)], plain = rnd() < 0.2;
+            var geo = this._awningGeo(len + 0.3, plain ? PLAIN[Math.floor(rnd() * PLAIN.length)] : pal[0], plain ? PLAIN[Math.floor(rnd() * PLAIN.length)] : pal[1]);
+            if (plain) { var cc = geo.attributes.color.array, c0 = [cc[0], cc[1], cc[2]]; for (k = 0; k < cc.length; k += 3) { cc[k] = c0[0]; cc[k + 1] = c0[1]; cc[k + 2] = c0[2]; } }
+            var C1 = cell(m.x, m.z);
+            C1.K.add(geo, 0xffffff, m.x + nx * 0.07, top, m.z + nz * 0.07, 0, Math.atan2(nx, nz), 0);
+            aw++;
+        }
+        /* ---- roofs ---- */
+        var metal = 0x6a6e72, tar = 0x2e2e30, rf = 0, BIG = {};
+        /* every wide box by its footprint centre, to find the cap on top of a block */
+        for (i = 0; i < M.length; i++) {
+            var e = M[i];
+            if (e.w < 6 || e.d < 6) { continue; }
+            var ek = Math.round(e.x) + ',' + Math.round(e.z);
+            (BIG[ek] || (BIG[ek] = [])).push(e);
+        }
+        for (i = 0; i < M.length; i++) {
+            var b = M[i];
+            if (!b.solid || b.h < 7.5 || b.w < 8 || b.d < 8 || b.rotY || b.y > 0.5 || b.tag !== 'world') { continue; }
+            /* the roof sits on the cap: find its top */
+            var ry = b.h, j, ox, oz;
+            for (ox = -1; ox <= 1; ox++) {
+                for (oz = -1; oz <= 1; oz++) {
+                    var L = BIG[(Math.round(b.x) + ox) + ',' + (Math.round(b.z) + oz)] || [];
+                    for (j = 0; j < L.length; j++) {
+                        var q = L[j];
+                        if (q === b || q.w < b.w * 0.9 || q.d < b.d * 0.9 || Math.abs(q.x - b.x) > 1 || Math.abs(q.z - b.z) > 1) { continue; }
+                        if (q.y > b.h - 1 && q.y < b.h + 1) { ry = Math.max(ry, q.y + q.h); }
+                    }
+                }
+            }
+            var C2 = cell(b.x, b.z), K = C2.K, hw = b.w / 2 - 1.4, hd = b.d / 2 - 1.4, x, z;
+            var rx = function () { return b.x + (rnd() * 2 - 1) * hw; }, rz = function () { return b.z + (rnd() * 2 - 1) * hd; };
+            if (b.surface === 'metal') {
+                /* sheds: a row of turbine ventilators down the ridge */
+                var nv = Math.max(2, Math.floor(b.w / 6));
+                for (k = 0; k < nv; k++) {
+                    x = b.x - b.w / 2 + (k + 0.5) * b.w / nv;
+                    K.cyl(0.22, 0.22, 0.5, x, ry + 0.25, b.z, metal, 0, 0, 6);
+                    K.add(new THREE.SphereGeometry(0.34, 6, 4, 0, Math.PI * 2, 0, Math.PI / 2), 0x8a8e92, x, ry + 0.5, b.z);
+                }
+                rf++; continue;
+            }
+            /* vent stacks */
+            var nst = 1 + Math.floor(rnd() * 3);
+            for (k = 0; k < nst; k++) { var vh = 0.6 + rnd() * 0.9; K.cyl(0.12 + rnd() * 0.12, 0.14 + rnd() * 0.12, vh, rx(), ry + vh / 2, rz(), k % 2 ? metal : 0x5a4a44, 0, 0, 6); }
+            /* the stair bulkhead */
+            if (rnd() < 0.55) {
+                x = rx(); z = rz();
+                K.box(2.4, 2.3, 2.6, x, ry + 1.15, z, b.color); K.box(2.6, 0.15, 2.8, x, ry + 2.35, z, 0x4a4a46);
+                K.box(0.9, 1.9, 0.05, x, ry + 0.95, z + 1.32, 0x3a2e26);
+
+            }
+            /* a wooden water tank on its legs, on the tall ones */
+            if (b.h > 11 && rnd() < 0.45) {
+                x = rx(); z = rz();
+                for (k = 0; k < 4; k++) { K.box(0.14, 2.4, 0.14, x + (k % 2 ? 1 : -1), ry + 1.2, z + (k < 2 ? 1 : -1), 0x3a3a38); }
+                K.box(2.6, 0.12, 2.6, x, ry + 2.4, z, 0x5a4a3a);
+                K.cyl(1.35, 1.35, 2.4, x, ry + 3.66, z, 0x7a5a3e, 0, 0, 10);
+                for (k = 0; k < 3; k++) { K.cyl(1.37, 1.37, 0.07, x, ry + 2.8 + k * 0.8, z, 0x2a2a2a, 0, 0, 10); }
+                K.add(new THREE.ConeGeometry(1.45, 0.9, 10), 0x4a4a46, x, ry + 5.3, z);
+            }
+            /* a swamp cooler (an evaporative box, louvred), skylights, tar patches */
+            if (rnd() < 0.4) {
+                x = rx(); z = rz();
+                K.box(1.1, 1.0, 1.1, x, ry + 0.5, z, 0x8a8e88); K.box(1.12, 0.06, 1.12, x, ry + 1.03, z, 0x6a6e68);
+                for (k = 0; k < 4; k++) { K.box(1.14, 0.05, 0.05, x, ry + 0.25 + k * 0.2, z + 0.56, 0x5a5e58); }
+                K.box(0.4, 0.4, 1.6, x, ry + 0.2, z - 1.3, metal);
+            }
+            if (rnd() < 0.35) { x = rx(); z = rz(); K.box(1.6, 0.35, 1.0, x, ry + 0.18, z, 0x9a9890); K.box(1.4, 0.05, 0.8, x, ry + 0.38, z, 0x8aa0a8, 0.25, 0, 0); }
+            for (k = 0; k < 2; k++) { if (rnd() < 0.5) { K.box(1.5 + rnd() * 3, 0.03, 1 + rnd() * 2, rx(), ry + 0.02, rz(), tar, 0, rnd(), 0); } }
+            rf++;
+        }
+        for (k in cells) { if (cells.hasOwnProperty(k)) { this._weld(cells[k].g, cells[k].S, true); } }
+        this.awningCount = aw; this.roofCount = rf;
     },
     /* an olive-drab Army truck (deuce-and-a-half) or a jeep, nose along yaw */
     _armyTruck: function (K, x, z, yaw, jeep) {
