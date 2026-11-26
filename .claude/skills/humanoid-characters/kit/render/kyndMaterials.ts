@@ -759,7 +759,16 @@ function hairNormal(p: HairParams, T: TSL): TNode {
   return p.bump ? T.bumpMap(T.texture(p.bump as never), T.float(p.scale)) : T.normalView.mul(T.faceDirection);
 }
 
-/** Hair (engine M5 material feature `hair`): brighter where it turns from the eye. */
+/**
+ * The hair's sheen (Kajiya-Kay, two lobes): a pale primary band and a second band tinted with the
+ * hair's own colour, both running across the strands. The strands run along the strand texture's
+ * v, so their direction comes from the screen-space derivatives of the uv; each strand's shift
+ * comes from the strand texture, which breaks the band into strands. The light is a fixed soft key
+ * from above the viewer (like the eyes' catch-light), and the sheen goes into the albedo, so it
+ * dims with the light in shade and at night. Returns [primary, secondary] weights.
+ */
+const HAIR_KEY = [-0.35, 0.75, 0.55];
+/** Hair (engine M5 material feature `hair`): brighter where it turns from the eye, with a sheen. */
 export const HAIR = defineFeature<HairParams>({
   id: 'hair',
   key: () => 'kynd-hair',
@@ -768,12 +777,49 @@ export const HAIR = defineFeature<HairParams>({
       '#include <normal_fragment_maps>',
       `#include <normal_fragment_maps>
       float hNdv = clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0);
-      diffuseColor.rgb *= mix(1.22, 0.96, hNdv);`,
+      diffuseColor.rgb *= mix(1.22, 0.96, hNdv);
+      #ifdef USE_MAP
+      {
+        vec3 hdx = dFdx(-vViewPosition), hdy = dFdy(-vViewPosition);
+        vec2 hux = dFdx(vMapUv), huy = dFdy(vMapUv);
+        vec3 hT = hdy * hux.x - hdx * huy.x;
+        hT = normalize(hT - normal * dot(hT, normal) + vec3(1e-6));
+        float hs = texture2D(map, vMapUv).r - 0.55;
+        vec3 hH = normalize(normalize(vec3(${HAIR_KEY.join(', ')})) + normalize(vViewPosition));
+        vec3 hT1 = normalize(hT + normal * (0.1 + hs * 0.6));
+        vec3 hT2 = normalize(hT - normal * (0.12 - hs * 0.5));
+        float d1 = dot(hT1, hH), d2 = dot(hT2, hH);
+        float k1 = pow(clamp(1.0 - d1 * d1, 0.0, 1.0), 70.0);
+        float k2 = pow(clamp(1.0 - d2 * d2, 0.0, 1.0), 14.0);
+        float hFace = clamp(dot(normal, normalize(vec3(${HAIR_KEY.join(', ')}))) * 0.6 + 0.4, 0.0, 1.0);
+        diffuseColor.rgb += (vec3(0.17) * k1 + diffuseColor.rgb * 0.75 * k2 * clamp(0.6 + hs * 1.5, 0.0, 1.0)) * hFace;
+      }
+      #endif`,
     );
   },
   tslDiffuse(p, T) {
-    const ndv = T.clamp(T.dot(hairNormal(p, T), T.positionView.negate().normalize()), 0, 1);
-    return (c) => T.vec4(c.rgb.mul(T.mix(1.22, 0.96, ndv)), c.a);
+    const n = hairNormal(p, T);
+    const ndv = T.clamp(T.dot(n, T.positionView.negate().normalize()), 0, 1);
+    if (!p.bump) return (c) => T.vec4(c.rgb.mul(T.mix(1.22, 0.96, ndv)), c.a);
+    const uv = T.uv();
+    const hdx = T.dFdx(T.positionView), hdy = T.dFdy(T.positionView);
+    const hux = T.dFdx(uv), huy = T.dFdy(uv);
+    const raw: TNode = hdy.mul(hux.x).sub(hdx.mul(huy.x));
+    const ht: TNode = raw.sub(n.mul(T.dot(raw, n))).add(T.vec3(1e-6)).normalize();
+    const hs = T.texture(p.bump as never, uv).r.sub(0.55);
+    const key = T.vec3(HAIR_KEY[0], HAIR_KEY[1], HAIR_KEY[2]).normalize();
+    const hh = key.add(T.positionView.negate().normalize()).normalize();
+    const t1 = ht.add(n.mul(hs.mul(0.6).add(0.1))).normalize();
+    const t2 = ht.sub(n.mul(T.float(0.12).sub(hs.mul(0.5)))).normalize();
+    const d1 = T.dot(t1, hh), d2 = T.dot(t2, hh);
+    const k1 = T.pow(T.clamp(T.float(1).sub(d1.mul(d1)), 0, 1), 70);
+    const k2 = T.pow(T.clamp(T.float(1).sub(d2.mul(d2)), 0, 1), 14);
+    const face = T.clamp(T.dot(n, key).mul(0.6).add(0.4), 0, 1);
+    return (c) => {
+      const base = c.rgb.mul(T.mix(1.22, 0.96, ndv));
+      const sheen = T.vec3(0.17).mul(k1).add(base.mul(0.75).mul(k2).mul(T.clamp(hs.mul(1.5).add(0.6), 0, 1))).mul(face);
+      return T.vec4(base.add(sheen), c.a);
+    };
   },
   tsl(m, p, T) {
     m.normalNode = hairNormal(p, T);
