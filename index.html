@@ -28150,7 +28150,7 @@ var Landmarks = {
     /* ================================================================ BUILD */
     build: function () {
         var names = ['_pleasurePier', '_flagship', '_seawallStrip', '_beachSide', '_gulfQueen', '_downtown', '_trapani',
-                     '_waterfront', '_government', '_mainland', '_hospital', '_galveston', '_renames', '_hotelSigns', '_cadiz', '_fishCamps', '_midIsland', '_westEnd', '_pelican', '_eastEnd', '_bolivar', '_hickory', '_billboards', '_streetGrime'], i;
+                     '_waterfront', '_government', '_mainland', '_hospital', '_galveston', '_renames', '_hotelSigns', '_cadiz', '_fishCamps', '_midIsland', '_westEnd', '_westDress', '_roadsidePoles', '_pelican', '_eastEnd', '_bolivar', '_hickory', '_billboards', '_streetGrime'], i;
         for (i = 0; i < names.length; i++) {
             try { this[names[i]](); } catch (e) { if (window.console) { console.warn('landmarks ' + names[i], e); } }
         }
@@ -29267,6 +29267,270 @@ var Landmarks = {
        by the steps, a cleaning table with its buckets, a heap of shell,
        floats strung along the porch rail, the bait board on its post, and
        dune grass where nobody walks. One mesh for the whole West End. */
+    /* ---------------------------------------------------------------- v96 */
+    /* a merged kit piece: build into g with K, weld, add, distance-cull with World.detail */
+    _weld: function (g, solids, cull) {
+        var m = SV.util.mergeGroup(g, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }));
+        if (!m) { return null; }
+        World.scene.add(g);
+        m.geometry.computeBoundingBox();
+        if (cull && World.detail) { World.detail.push(m); }
+        var k, q;
+        for (k = 0; k < (solids || []).length; k++) {
+            q = solids[k];
+            World.colliders.push({ box: new THREE.Box3(new THREE.Vector3(q[0], 0, q[2]), new THREE.Vector3(q[1], q[4], q[3])), tall: q[4] > 1.6 });
+        }
+        return m;
+    },
+    _rng: function (seed) {
+        var a = seed >>> 0;
+        return function () { a = (a + 0x6D2B79F5) >>> 0; var t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    },
+    _dune: function (K, rnd, x, z, n) {
+        var b;
+        for (b = 0; b < (n || 7); b++) {
+            var a = rnd() * Math.PI * 2, t = 0.2 + rnd() * 0.35, ht = 0.45 + rnd() * 0.5, rr = rnd() * 0.35;
+            K.add(new THREE.ConeGeometry(0.09, ht, 4), [0x7a8a4a, 0x8a9a5a, 0x9a945a, 0xa89a62][b % 4], x + Math.cos(a) * rr, ht * 0.45, z + Math.sin(a) * rr, Math.sin(a) * t, 0, Math.cos(a) * t);
+        }
+    },
+    _wire: function (K, a, b, r, hex) {
+        var D = new THREE.Vector3(b[0] - a[0], b[1] - a[1], b[2] - a[2]), L = D.length();
+        var m = K.add(new THREE.CylinderGeometry(r, r, L, 3, 1, true), hex);
+        m.position.set(a[0] + D.x / 2, a[1] + D.y / 2, a[2] + D.z / 2);
+        m.quaternion.setFromUnitVectors(this._up || (this._up = new THREE.Vector3(0, 1, 0)), D.normalize());
+        return m;
+    },
+    _okAt: function (x, z, r) {
+        return !World.pointBlocked(x, z, r, 1.5) && !(typeof Water !== 'undefined' && Water.isWater && Water.isWater(x, z)) &&
+               !(typeof Routes !== 'undefined' && Routes.onRoad && Routes.onRoad(x, z)) && !(typeof Roads !== 'undefined' && Roads.onRoad && Roads.onRoad(x, z));
+    },
+    /* creosote poles every ~46m on one verge of the country roads, three wires sagging between */
+    _roadsidePoles: function () {
+        if (typeof Routes === 'undefined' || !Routes.LIST) { return; }
+        var self = this, rnd = this._rng(9606), placed = 0, ri, i;
+        var pole = 0x4e4032, arm = 0x5a4a38, wire = 0x1c1c1e, glass = 0x5e8a7a;
+        for (ri = 0; ri < Routes.LIST.length; ri++) {
+            var r = Routes.LIST[ri];
+            if ((r.cls !== 'rural' && r.cls !== 'highway') || r.bridge || !r.P || r.P.length < 2) { continue; }
+            var off = Routes.corridor(r) + 2.6, P = r.P, acc = 0, next = 20, prev = null;
+            var g = new THREE.Group(), K = City._kit(g), solids = [], spans = 0;
+            var flush = function () {
+                if (spans || g.children.length) { self._weld(g, solids, true); }
+                g = new THREE.Group(); K = City._kit(g); solids = []; spans = 0;
+            };
+            for (i = 1; i < P.length; i++) {
+                var ax = P[i - 1][0], az = P[i - 1][1], bx = P[i][0], bz = P[i][1], L = Math.hypot(bx - ax, bz - az);
+                if (L < 0.01) { continue; }
+                var dx = (bx - ax) / L, dz = (bz - az) / L;
+                while (acc + L >= next) {
+                    var t = (next - acc) / L, px = ax + (bx - ax) * t + dz * off, pz = az + (bz - az) * t - dx * off;
+                    next += 44 + rnd() * 6;
+                    if (!self._okAt(px, pz, 0.6)) { prev = null; continue; }
+                    var ry = Math.atan2(dx, dz);
+                    K.cyl(0.12, 0.16, 9.2, px, 4.6, pz, pole, 0, 0, 6);
+                    K.box(2.3, 0.13, 0.13, px, 8.5, pz, arm, 0, ry, 0);
+                    K.rod([px, 8.0, pz], [px + dz * 0.7, 8.45, pz - dx * 0.7], 0.03, arm);
+                    var ins = [], k;
+                    for (k = -1; k <= 1; k++) {
+                        var ix = px + dz * k * 0.95, iz = pz - dx * k * 0.95;
+                        K.cyl(0.05, 0.06, 0.16, ix, 8.66, iz, glass, 0, 0, 6);
+                        ins.push([ix, 8.74, iz]);
+                    }
+                    if (prev) {
+                        /* three wires, each a four-piece catenary sagging 0.7m; a wire is an open
+                           three-sided tube (6 triangles a piece, not the kit rod's 24) */
+                        for (k = 0; k < 3; k++) {
+                            var A = prev[k], B = ins[k], seg, la = A, sx;
+                            for (seg = 1; seg <= 4; seg++) {
+                                sx = seg / 4;
+                                var nb = [A[0] + (B[0] - A[0]) * sx, A[1] + (B[1] - A[1]) * sx - Math.sin(sx * Math.PI) * 0.7, A[2] + (B[2] - A[2]) * sx];
+                                self._wire(K, la, nb, 0.016, wire);
+                                la = nb;
+                            }
+                        }
+                        spans++;
+                    }
+                    if (rnd() < 0.45) { self._dune(K, rnd, px + (rnd() - 0.5) * 2, pz + (rnd() - 0.5) * 2, 5); }
+                    solids.push([px - 0.2, px + 0.2, pz - 0.2, pz + 0.2, 9]);
+                    prev = ins; placed++;
+                    if (spans >= 8) { flush(); prev = ins; }
+                }
+                acc += L;
+            }
+            flush();
+        }
+        this.poleCount = placed;
+    },
+    /* the far West End's places, dressed */
+    _westDress: function () {
+        var rnd = this._rng(1959), self = this, g, K, S, i, k, x, z;
+        var white = 0xf0ece2, alu = 0xb8bcc0, dark = 0x2a2a2c, tyre = 0x1c1c1e, wood = 0x7a6248, grey = 0x8a8a86;
+        /* ---- Skyline Trailer Court ---- */
+        g = new THREE.Group(); K = City._kit(g); S = [];
+        var PT = [0xe8d8b8, 0xb8d8c8, 0xe8c0b8, 0xc8d4e8, 0xf0e2a8, 0xd8d8d0];
+        for (i = 0; i < 12; i++) {
+            x = -2500 + (i < 6 ? -11 : 11); z = 310 + (i % 6) * 11.5;
+            var fz = i < 6 ? 1 : -1, cx = x + (i < 6 ? 5.4 : -5.4);
+            K.soft(9.7, 0.34, 2.72, x, 3.36, z, PT[i % PT.length], 0.15);              /* rounded roof cap */
+            K.box(9.6, 0.12, 2.7, x, 2.1, z, 0xc8c4b8);                                 /* belt trim */
+            for (k = -1; k <= 1; k += 2) { K.cyl(0.36, 0.36, 0.22, x - 0.6, 0.36, z + k * 1.25, tyre, Math.PI / 2, 0, 10); }
+            K.rod([x + (i < 6 ? 4.75 : -4.75), 0.5, z - 0.8], [cx, 0.42, z], 0.05, dark);   /* hitch A-frame */
+            K.rod([x + (i < 6 ? 4.75 : -4.75), 0.5, z + 0.8], [cx, 0.42, z], 0.05, dark);
+            K.cyl(0.05, 0.05, 0.4, cx, 0.2, z, dark, 0, 0, 6);
+            K.cyl(0.17, 0.17, 0.7, cx - (i < 6 ? 0.5 : -0.5), 0.35, z - 0.35, white, 0, 0, 10);   /* propane */
+            K.cyl(0.17, 0.17, 0.7, cx - (i < 6 ? 0.5 : -0.5), 0.35, z + 0.05, white, 0, 0, 10);
+            if (i % 2 === 0) {                                                           /* TV aerial */
+                K.rod([x - 2, 3.5, z], [x - 2, 6.2, z], 0.03, alu);
+                for (k = 0; k < 4; k++) { K.box(1.5 - k * 0.25, 0.03, 0.03, x - 2, 5.3 + k * 0.28, z, alu, 0, 0.6, 0); }
+            }
+            /* lawn chairs on the door side */
+            var lz = z + fz * 2.6, lx = x + (i < 6 ? 2 : -2);
+            if (i % 3 !== 1) {
+                for (k = 0; k < 2; k++) {
+                    var qx = lx + k * 0.8;
+                    K.box(0.55, 0.05, 0.5, qx, 0.42, lz, [0x2a8a8a, 0xd8543a, 0xe0b830][(i + k) % 3]);
+                    K.box(0.55, 0.55, 0.05, qx, 0.68, lz + fz * 0.25, [0x2a8a8a, 0xd8543a, 0xe0b830][(i + k) % 3], -fz * 0.25, 0, 0);
+                    K.rod([qx - 0.27, 0, lz - 0.25], [qx - 0.27, 0.42, lz + 0.2], 0.015, alu); K.rod([qx + 0.27, 0, lz - 0.25], [qx + 0.27, 0.42, lz + 0.2], 0.015, alu);
+                }
+            }
+            /* a clothesline behind every other one, washing on it */
+            if (i % 2 === 1) {
+                var bz = z - fz * 3.2;
+                K.rod([x - 3, 0, bz], [x - 3, 1.9, bz], 0.04, grey); K.rod([x + 3, 0, bz], [x + 3, 1.9, bz], 0.04, grey);
+                K.box(0.9, 0.05, 0.05, x - 3, 1.85, bz, grey); K.box(0.9, 0.05, 0.05, x + 3, 1.85, bz, grey);
+                K.rod([x - 3, 1.85, bz], [x + 3, 1.75, bz], 0.008, 0xd8d4c8);
+                for (k = 0; k < 5; k++) {
+                    var wx = x - 2.4 + k * 1.15, hh = 0.5 + rnd() * 0.45;
+                    K.box(0.6 + rnd() * 0.3, hh, 0.02, wx, 1.78 - hh / 2, bz, [0xf4f0e6, 0x8ab0d8, 0xe8c0b8, 0xf4f0e6, 0xd8d0a0][k], 0, rnd() * 0.15, 0);
+                }
+            }
+        }
+        /* office hut, picnic table and oleanders at the lane head */
+        K.box(4.2, 2.8, 3.2, -2478, 1.4, 384, 0xf0e8d0); K.box(4.8, 0.2, 3.8, -2478, 2.9, 384, 0x2a8a8a);
+        K.box(1.4, 0.8, 0.05, -2478, 1.6, 385.62, 0x3d5561); K.box(0.8, 1.9, 0.05, -2476.8, 0.95, 385.62, 0x6a4a32);
+        S.push([-2480.1, -2475.9, 382.4, 385.6, 3]);
+        K.box(1.8, 0.06, 0.8, -2490, 0.75, 386, wood); K.box(1.8, 0.05, 0.28, -2490, 0.45, 385.3, wood); K.box(1.8, 0.05, 0.28, -2490, 0.45, 386.7, wood);
+        for (k = -1; k <= 1; k += 2) { K.rod([-2490 + k * 0.7, 0, 385.2], [-2490 + k * 0.7, 0.75, 386.8], 0.04, wood); K.rod([-2490 + k * 0.7, 0, 386.8], [-2490 + k * 0.7, 0.75, 385.2], 0.04, wood); }
+        for (k = 0; k < 7; k++) {
+            x = -2518 + (k % 2) * 36 + (rnd() - 0.5) * 3; z = 300 + k * 12;
+            var bush = K.add(new THREE.SphereGeometry(1.1, 8, 6), 0x4a6a3a, x, 0.9, z); bush.scale.set(1, 0.85, 1);
+            for (var fl = 0; fl < 6; fl++) { K.add(new THREE.SphereGeometry(0.14, 5, 4), [0xe87aa0, 0xf4f0e6][fl % 2], x + (rnd() - 0.5) * 1.6, 0.9 + rnd() * 0.8, z + (rnd() - 0.5) * 1.6); }
+        }
+        this._weld(g, S, true);
+
+        /* ---- Cross T Ranch ---- */
+        g = new THREE.Group(); K = City._kit(g); S = [];
+        /* the windmill wheel and tail vane on the existing tower (top 12.2 over -3648.5, 11.5) */
+        var wx0 = -3648.5, wy = 12.6, wz0 = 10.2;
+        K.cyl(0.25, 0.25, 0.5, wx0, wy, wz0, dark, Math.PI / 2, 0, 8);
+        for (k = 0; k < 14; k++) {
+            var ang = k / 14 * Math.PI * 2;
+            K.box(0.32, 1.25, 0.03, wx0 + Math.cos(ang) * 0.85, wy + Math.sin(ang) * 0.85, wz0 - 0.2, 0xc8c4b8, 0.35, 0, ang - Math.PI / 2);
+        }
+        K.ring(1.45, 0.03, wx0, wy, wz0 - 0.2, 0x8a8a86, 0, 0);
+        K.box(0.08, 0.08, 2.4, wx0, wy, wz0 + 1.2, dark); K.box(0.04, 1.1, 1.3, wx0, wy, wz0 + 2.3, 0xc8c4b8);
+        /* round bales by the barn, a trough, the coop */
+        for (k = 0; k < 6; k++) {
+            x = -3734 + (k % 3) * 1.9; z = 36 + Math.floor(k / 3) * 2.1;
+            K.cyl(0.75, 0.75, 1.3, x, 0.75, z, 0xc8a860, 0, Math.PI / 2, 12);
+        }
+        K.cyl(0.75, 0.75, 1.3, -3732.1, 2.05, 37.05, 0xc0a058, 0, Math.PI / 2, 12);
+        S.push([-3735, -3728.4, 35.2, 39.2, 2.8]);
+        K.box(3.2, 0.6, 0.9, -3690, 0.3, 58, 0x8a8e8a); K.box(3.0, 0.05, 0.7, -3690, 0.55, 58, 0x3a5a6a);
+        K.box(3, 1.6, 2.2, -3660, 0.8, -12, 0xe0d8c4); City._gable(-3660, 1.6, -12, 3.3, 2.5, 0.8, 0x5a4a3c);
+        S.push([-3661.5, -3658.5, -13.1, -10.9, 2.4]);
+        /* the herd: Herefords, red-brown with white faces */
+        var cowAt = function (cx, cz, yaw, red) {
+            var sy = Math.sin(yaw), cy = Math.cos(yaw), at = function (u, v) { return [cx + sy * u + cy * v, cz + cy * u - sy * v]; };
+            var bdy = K.soft(0.7, 0.75, 1.55, cx, 0.98, cz, red ? 0x7a3a22 : 0x2a2422, 0.18); bdy.rotation.y = yaw;
+            var hp = at(0.9, 0); var hd = K.soft(0.36, 0.42, 0.5, hp[0], 1.12, hp[1], white, 0.1); hd.rotation.y = yaw; hd.rotation.x = 0.35;
+            var j; for (j = 0; j < 4; j++) { var lp = at(j < 2 ? 0.55 : -0.55, j % 2 ? 0.22 : -0.22); K.box(0.13, 0.62, 0.13, lp[0], 0.31, lp[1], red ? 0x6a3220 : 0x222020, 0, yaw, 0); }
+            var tp = at(-0.82, 0); K.rod([tp[0], 1.15, tp[1]], [tp[0], 0.45, tp[1]], 0.03, red ? 0x6a3220 : 0x222020);
+        };
+        var COWS = [[-3690, 70, 0.4], [-3684, 78, 2.6], [-3676, 66, -1.2], [-3696, 84, 1.9], [-3668, 82, 3.6], [-3760, 120, 0.8], [-3772, 140, -2.1], [-3740, 150, 1.2], [-3790, 110, 2.9], [-3710, 175, -0.4]];
+        for (k = 0; k < COWS.length; k++) { cowAt(COWS[k][0], COWS[k][1], COWS[k][2], k % 4 !== 3); }
+        /* the entrance arch over the drive off Sweetwater Road, with the brand */
+        var ax0 = -3612, az0 = -40;
+        K.cyl(0.18, 0.2, 5.2, ax0, 2.6, az0 - 3.2, wood, 0, 0, 8); K.cyl(0.18, 0.2, 5.2, ax0, 2.6, az0 + 3.2, wood, 0, 0, 8);
+        K.box(0.25, 0.3, 7.4, ax0, 5.1, az0, wood);
+        K.box(0.08, 0.9, 2.4, ax0 - 0.05, 4.25, az0, 0x5a4232);
+        K.box(0.09, 0.14, 1.4, ax0 - 0.11, 4.45, az0, 0xe8dcc0); K.box(0.09, 0.55, 0.14, ax0 - 0.11, 4.15, az0, 0xe8dcc0);   /* the T */
+        K.box(0.09, 0.14, 0.6, ax0 - 0.11, 4.15, az0 - 0.95, 0xe8dcc0); K.box(0.09, 0.6, 0.14, ax0 - 0.11, 4.15, az0 - 0.95, 0xe8dcc0); /* the cross */
+        for (k = 0; k < 9; k++) { K.box(0.12, 0.08, 6, ax0 + 2 + (k - 4) * 0.22, 0.05, az0, 0x6a6a66); }   /* cattle guard */
+        S.push([ax0 - 0.25, ax0 + 0.25, az0 - 3.45, az0 - 2.95, 5.2]); S.push([ax0 - 0.25, ax0 + 0.25, az0 + 2.95, az0 + 3.45, 5.2]);
+        for (k = 0; k < 4; k++) { City._tree(-3700 + (k % 2) * 46 + (rnd() - 0.5) * 6, -70 + Math.floor(k / 2) * 18, 5 + (k % 2), 8 + (k % 3), true); }
+        this._weld(g, S, true);
+
+        /* ---- The Driftwood ---- */
+        g = new THREE.Group(); K = City._kit(g); S = [];
+        var dxb = -5150, dzb = 292;
+        for (k = 0; k < 3; k++) {                                                        /* picnic tables */
+            x = dxb + 12.5; z = dzb - 3 + k * 4;
+            K.box(0.8, 0.06, 1.9, x, 0.75, z, wood); K.box(0.28, 0.05, 1.9, x - 0.7, 0.45, z, wood); K.box(0.28, 0.05, 1.9, x + 0.7, 0.45, z, wood);
+            K.rod([x - 0.8, 0, z - 0.75], [x + 0.8, 0.75, z - 0.75], 0.04, wood); K.rod([x + 0.8, 0, z - 0.75], [x - 0.8, 0.75, z - 0.75], 0.04, wood);
+            K.rod([x - 0.8, 0, z + 0.75], [x + 0.8, 0.75, z + 0.75], 0.04, wood); K.rod([x + 0.8, 0, z + 0.75], [x - 0.8, 0.75, z + 0.75], 0.04, wood);
+            S.push([x - 0.9, x + 0.9, z - 1, z + 1, 0.8]);
+        }
+        K.cyl(0.32, 0.32, 0.9, dxb + 12.5, 1.0, dzb + 9, dark, 0, Math.PI / 2, 12);     /* oil-drum barbecue */
+        K.box(0.9, 0.05, 0.6, dxb + 12.5, 1.33, dzb + 9, 0x3a3a3a);
+        for (k = 0; k < 4; k++) { K.rod([dxb + 12.2 + (k % 2) * 0.6, 0, dzb + 8.75 + Math.floor(k / 2) * 0.5], [dxb + 12.3 + (k % 2) * 0.4, 0.75, dzb + 8.85 + Math.floor(k / 2) * 0.3], 0.025, dark); }
+        for (k = 0; k < 9; k++) {                                                        /* beer crates by the side door */
+            K.box(0.5, 0.3, 0.38, dxb - 10.2 + (k % 3) * 0.02, 0.15 + Math.floor(k / 3) * 0.31, dzb - 4 + (k % 3) * 0.4, k % 2 ? 0x8a6a3a : 0x9a7a48, 0, (rnd() - 0.5) * 0.2, 0);
+        }
+        for (k = 0; k < 2; k++) { K.cyl(0.26, 0.22, 0.75, dxb - 10.2, 0.38, dzb + 1 + k * 0.7, alu, 0, 0, 10); K.cyl(0.28, 0.28, 0.06, dxb - 10.2, 0.78, dzb + 1 + k * 0.7, alu, 0, 0, 10); }
+        S.push([dxb - 10.6, dxb - 9.8, dzb - 4.3, dzb + 1.7, 1.0]);
+        /* a string of bulbs from the porch to a pole by the road */
+        var bp = [dxb + 9, 0, dzb + 16];
+        K.rod(bp, [bp[0], 4.2, bp[2]], 0.08, wood);
+        for (k = 0; k <= 10; k++) {
+            var tt = k / 10, sx0 = dxb + 6 + (bp[0] - dxb - 6) * tt, sy0 = 3.6 + (4.1 - 3.6) * tt - Math.sin(tt * Math.PI) * 0.45, sz0 = dzb + 8 + (bp[2] - dzb - 8) * tt;
+            if (k) { K.rod([px0, py0, pz0], [sx0, sy0, sz0], 0.01, dark); }
+            K.add(new THREE.SphereGeometry(0.07, 6, 4), [0xffe8a0, 0xff7a5a, 0x8ae0ff][k % 3], sx0, sy0 - 0.08, sz0);
+            var px0 = sx0, py0 = sy0, pz0 = sz0;
+        }
+        S.push([bp[0] - 0.15, bp[0] + 0.15, bp[2] - 0.15, bp[2] + 0.15, 4.2]);
+        /* a skiff on its trailer at the edge of the lot */
+        var bx0 = dxb - 9, bz0 = dzb - 13;
+        K.soft(1.5, 0.55, 4.6, bx0, 0.95, bz0, 0xe8e4da, 0.2); K.box(1.42, 0.1, 4.4, bx0, 1.24, bz0, 0x2a5a8a);
+        K.box(1.2, 0.08, 0.3, bx0, 1.1, bz0 - 0.6, wood); K.box(1.2, 0.08, 0.3, bx0, 1.1, bz0 + 0.8, wood);
+        K.box(0.3, 0.5, 0.25, bx0, 1.35, bz0 - 2.4, 0x3a3a3a);                         /* outboard */
+        for (k = -1; k <= 1; k += 2) { K.cyl(0.3, 0.3, 0.18, bx0 + k * 0.85, 0.3, bz0 + 0.4, tyre, 0, Math.PI / 2, 10); K.rod([bx0 + k * 0.6, 0.62, bz0 - 2], [bx0 + k * 0.6, 0.62, bz0 + 2], 0.04, grey); }
+        K.rod([bx0, 0.55, bz0 + 2], [bx0, 0.45, bz0 + 3.4], 0.05, grey);
+        S.push([bx0 - 0.95, bx0 + 0.95, bz0 - 2.4, bz0 + 3.4, 1.4]);
+        for (k = 0; k < 14; k++) {
+            var ga = rnd() * Math.PI * 2, gr = 13 + rnd() * 8;
+            x = dxb + Math.cos(ga) * gr; z = dzb + Math.sin(ga) * gr * 0.8;
+            if (self._okAt(x, z, 0.4)) { self._dune(K, rnd, x, z, 8); }
+        }
+        this._weld(g, S, true);
+
+        /* ---- Sea Isle Hotel ruins ---- */
+        g = new THREE.Group(); K = City._kit(g); S = [];
+        var hx = -6450, hz = 125, W = 40, D = 22, plaster = 0xd8ccb4;
+        K.box(1.6, 12, 1.6, hx - 12, 6, hz - 3, 0x9a6a52); K.box(1.9, 0.4, 1.9, hx - 12, 12.1, hz - 3, 0x7a5442);
+        S.push([hx - 12.8, hx - 11.2, hz - 3.8, hz - 2.2, 12]);
+        var slab = K.box(14, 0.35, 8, hx + 6, 2.2, hz - 3, 0xb8ac94); slab.rotation.z = 0.32; slab.rotation.y = 0.1;
+        S.push([hx - 0.5, hx + 12.5, hz - 7, hz + 1, 2.6]);
+        for (k = 0; k < 12; k++) {
+            x = hx - 16 + rnd() * 30; z = hz - 8 + rnd() * 16;
+            K.box(0.2, 0.25, 4 + rnd() * 3, x, 0.18 + rnd() * 0.5, z, k % 3 ? 0x6a5a48 : 0x5a4a3a, (rnd() - 0.5) * 0.4, rnd() * Math.PI, (rnd() - 0.5) * 0.3);
+        }
+        K.soft(0.8, 0.5, 1.7, hx + 4, 0.15, hz + 6, white, 0.2);                     /* the bathtub */
+        K.box(0.6, 0.06, 1.5, hx + 4, 0.38, hz + 6, 0x9a948a);
+        var palm = K.cyl(0.18, 0.26, 7, hx + 15, 3.2, hz + 14, 0x7a6a58, 0.22, 0.15, 8);
+        K.box(1.4, 1.1, 0.9, hx - 2, 0.55, hz + D / 2 + 1.6, plaster);               /* front steps */
+        K.box(1.4, 0.55, 0.9, hx - 2, 0.28, hz + D / 2 + 2.4, plaster);
+        for (k = 0; k < 6; k++) {                                                        /* sand drifted against the walls */
+            var drift = K.add(new THREE.SphereGeometry(1, 10, 6), 0xd8c8a0, hx - W / 2 + 4 + k * 6.5, 0, hz - D / 2 + 0.8 + (k % 2) * 0.6);
+            drift.scale.set(3 + rnd() * 1.5, 0.55 + rnd() * 0.4, 1.3);
+        }
+        for (k = 0; k < 16; k++) {
+            x = hx - 24 + rnd() * 48; z = hz - 16 + rnd() * 34;
+            if (self._okAt(x, z, 0.4)) { self._dune(K, rnd, x, z, 7); }
+        }
+        this._weld(g, S, true);
+    },
+
     _fishCamps: function () {
         var D = null, i, k;
         for (i = 0; i < Districts.list.length; i++) { if (Districts.list[i].name === 'WEST END') { D = Districts.list[i]; } }
