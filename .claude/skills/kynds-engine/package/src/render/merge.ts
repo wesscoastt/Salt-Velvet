@@ -9,11 +9,21 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
  * Meshes flagged `userData.keep = true` (toggled or animated on their own) are never merged.
  */
 
-function normalise(geo: THREE.BufferGeometry, matrix: THREE.Matrix4): THREE.BufferGeometry {
+function normalise(geo: THREE.BufferGeometry, matrix: THREE.Matrix4, colour = false): THREE.BufferGeometry {
   let g = geo.index ? geo.toNonIndexed() : geo.clone();
-  for (const name of Object.keys(g.attributes)) if (name !== 'position' && name !== 'normal' && name !== 'uv') g.deleteAttribute(name);
+  // Vertex colours are kept when the material paints with them (reeds, painted cloth): without
+  // them a vertex-coloured material draws black.
+  for (const name of Object.keys(g.attributes)) if (name !== 'position' && name !== 'normal' && name !== 'uv' && !(colour && name === 'color')) g.deleteAttribute(name);
   if (!g.attributes.normal) g.computeVertexNormals();
   if (!g.attributes.uv) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
+  if (colour) {
+    const c = g.attributes.color;
+    const n = g.attributes.position.count;
+    // Every part merged needs the same layout: RGB floats (white where a part had none).
+    const rgb = new Float32Array(n * 3).fill(1);
+    if (c) for (let i = 0; i < n; i++) { rgb[i * 3] = c.getX(i); rgb[i * 3 + 1] = c.getY(i); rgb[i * 3 + 2] = c.getZ(i); }
+    g.setAttribute('color', new THREE.BufferAttribute(rgb, 3));
+  }
   g.applyMatrix4(matrix);
   // A mirrored transform flips winding; fix it so faces don't turn inside out.
   if (matrix.determinant() < 0) {
@@ -32,7 +42,8 @@ function keyOf(m: THREE.Mesh): string | null {
 }
 
 function buildMerged(list: { mesh: THREE.Mesh; matrix: THREE.Matrix4 }[]): THREE.Mesh {
-  const geo = mergeGeometries(list.map((e) => normalise(e.mesh.geometry, e.matrix)))!;
+  const colour = !!(list[0].mesh.material as THREE.Material & { vertexColors?: boolean }).vertexColors;
+  const geo = mergeGeometries(list.map((e) => normalise(e.mesh.geometry, e.matrix, colour)))!;
   geo.computeBoundingSphere();
   const first = list[0].mesh;
   const merged = new THREE.Mesh(geo, first.material);
