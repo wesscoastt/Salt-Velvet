@@ -111,10 +111,44 @@ Shared helper: `bumpNormal(T, height)`, the screen-derivative bump GLSL patches 
 
 Every material the game draws now has its node version (15 parity scenes pass). A whole
 hand-written `ShaderMaterial` gets one with `portShader(material, (gpu, T) => nodeMaterial)`.
-Left for M5b, the backend switch: snow as sprites, the leaves' seasonal shadow twins, the far haze,
-fog mixed after the output conversion as WebGL does, and PostFX. The WebGPU build of
-three.js is a separate copy of the library, so game code never imports it; only the parity page
-(and, later, the opt-in backend) does.
+The WebGPU build of three.js is a separate copy of the library, so game code never imports it;
+only the parity page and the WebGPU edition (below) do.
+
+## The WebGPU edition (M5b)
+`engine/render/backend.ts` makes every renderer (`createRenderer`): WebGLRenderer in the classic
+build, WebGPURenderer in the WebGPU edition. The edition is the same source built with
+`npm run build:gpu` (or `vite --mode gpu`): `three` is aliased to `engine/render/three-gpu.ts`
+(three/webgpu plus the few WebGL-only helpers add-ons import), output in `dist-gpu/`.
+`GPU_EDITION` is a build-time constant, so the classic build drops the GPU code.
+
+- **Materials.** `prepareForGPU(scene)` runs on every render and compileAsync: materials with
+  features, and ported `ShaderMaterial`s, get their node versions once (remembered); a shader with
+  no port hides its mesh and is named once in the console. Feature uses live in a WeakMap, not
+  `userData` (a clone JSON-copies `userData`, turning textures into plain objects);
+  `carryFeatures(from, to)` gives a deliberate copy the same features.
+- **Flat shading.** On the WebGL2 backend three works a flat normal out with screen derivatives in
+  the vertex stage, where they don't exist, and the program fails. A `flatShading` material, or a
+  lit mesh without a normal attribute, gets a faceted copy of its geometry with real face normals
+  instead (it looks the same).
+- **compileAsync.** three r170's compileAsync passes `_renderTransparents` one argument short, and
+  a throw mid-compile leaves the renderer "compiling" for good (nothing is ever drawn again).
+  The wrapper mends the call and restores the draw function if a compile fails.
+- **Viewports** are measured from the top edge in WebGPURenderer (`VIEWPORT_FROM_TOP`): the
+  portrait painter crops the top corner there.
+- **Snow** is a camera-facing quad per flake (WebGPU points are one pixel wide).
+- **Address flags:** `?webgl2` runs the edition on WebGPURenderer's WebGL2 backend; `?shaderlog`
+  reports shaders that fail to compile.
+
+Verified on the WebGL2 backend (SwiftShader): world, Kynds, animals, shadows, portraits draw.
+- **Post-processing** (`render/PostFXGPU.ts`, a separate chunk loaded only in the edition): one
+  node graph through three's `PostProcessing`: GTAO from the depth buffer (normals rebuilt from
+  depth, as the classic DepthToAO does), bloom, `renderOutput` (tone mapping and sRGB), then the
+  grade and vignette in display space. A quality change rebuilds the graph. (The classic build's
+  NaN-guard pass isn't ported.)
+
+Still to do: a real WebGPU device (SwiftShader's WebGPU loses its device here, so only real
+hardware can tell), the leaves' seasonal shadow twins, the far haze (the far country's GLSL
+haze patch has no node version), and fog mixed after the output conversion as WebGL does.
 
 ## Animation (M6)
 A Kynd's body pose is built each frame by `BODY_GRAPH` (KyndAvatar), a `PoseGraph` of layers in

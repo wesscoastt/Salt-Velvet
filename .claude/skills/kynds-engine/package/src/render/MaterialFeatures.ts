@@ -7,7 +7,7 @@ import { Registry } from '../core/Registry.ts';
  * Kynds Engine (docs/ENGINE_PLAN.md, M5): material features. A feature is one look a material can
  * carry (tri-planar surface detail, snow on top, a coat's sheen), written twice: as a GLSL patch
  * for today's WebGLRenderer, and as a TSL node graph for WebGPURenderer. A material records the
- * features it carries and their settings (`userData.features`), so it can be rebuilt as a node
+ * features it carries and their settings (`featuresOf`), so it can be rebuilt as a node
  * material (`toNodeMaterial`) once every feature it carries has a TSL version.
  *
  * The WebGPU build of three.js is a separate copy of the library, so nothing here imports it: the
@@ -65,9 +65,26 @@ export function featureTable(): { id: string; tsl: boolean }[] {
   return FEATURES.all().map((f) => ({ id: f.id, tsl: ported(f as MaterialFeature<unknown>) }));
 }
 
+/**
+ * Which features each material carries. Kept here, not in `userData`: `clone()` copies userData
+ * through JSON, which would leave a clone holding dead copies of the settings (a texture becomes a
+ * plain object). A plain clone carries no features (as it carries no GLSL patch); copies meant to
+ * keep them use `carryFeatures`.
+ */
+const USES = new WeakMap<THREE.Material, FeatureUse[]>();
+
 /** The features a material carries, in order. */
 export function featuresOf(material: THREE.Material): FeatureUse[] {
-  return (material.userData.features as FeatureUse[] | undefined) ?? [];
+  return USES.get(material) ?? [];
+}
+
+/** Give a copy of a material the same features (its GLSL patch, cache key and node settings). */
+export function carryFeatures<M extends THREE.Material>(from: THREE.Material, to: M): M {
+  to.onBeforeCompile = from.onBeforeCompile;
+  to.customProgramCacheKey = from.customProgramCacheKey;
+  const uses = USES.get(from);
+  if (uses) USES.set(to, uses);
+  return to;
 }
 
 /**
@@ -76,7 +93,9 @@ export function featuresOf(material: THREE.Material): FeatureUse[] {
  */
 export function addFeature<P>(material: THREE.Material, id: string, params: P): THREE.Material {
   const feature = FEATURES.require(id) as MaterialFeature<unknown>;
-  ((material.userData.features ??= []) as FeatureUse[]).push({ id, params });
+  let uses = USES.get(material);
+  if (!uses) USES.set(material, (uses = []));
+  uses.push({ id, params });
   const own = material.onBeforeCompile === THREE.Material.prototype.onBeforeCompile;
   const prev = material.onBeforeCompile;
   const prevKey = material.customProgramCacheKey.bind(material);

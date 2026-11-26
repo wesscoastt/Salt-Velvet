@@ -123,7 +123,7 @@ Ground-plane math. The simulation works in metres on the X/Z plane (Y is up, ren
 
 ## `render/MaterialFeatures.ts`
 
-Kynds Engine (docs/ENGINE_PLAN.md, M5): material features. A feature is one look a material can carry (tri-planar surface detail, snow on top, a coat's sheen), written twice: as a GLSL patch for today's WebGLRenderer, and as a TSL node graph for WebGPURenderer. A material records the features it carries and their settings (`userData.features`), so it can be rebuilt as a node material (`toNodeMaterial`) once every feature it carries has a TSL version. The WebGPU build of three.js is a separate copy of the library, so nothing here imports it: the caller that renders with nodes passes the `three/webgpu` and `three/tsl` modules in.
+Kynds Engine (docs/ENGINE_PLAN.md, M5): material features. A feature is one look a material can carry (tri-planar surface detail, snow on top, a coat's sheen), written twice: as a GLSL patch for today's WebGLRenderer, and as a TSL node graph for WebGPURenderer. A material records the features it carries and their settings (`featuresOf`), so it can be rebuilt as a node material (`toNodeMaterial`) once every feature it carries has a TSL version. The WebGPU build of three.js is a separate copy of the library, so nothing here imports it: the caller that renders with nodes passes the `three/webgpu` and `three/tsl` modules in.
 
 | Export | Kind | What it is |
 | --- | --- | --- |
@@ -138,6 +138,7 @@ Kynds Engine (docs/ENGINE_PLAN.md, M5): material features. A feature is one look
 | `featureById` | function |  |
 | `featureTable` | function | Every feature defined, and whether each has its node version yet. |
 | `featuresOf` | function | The features a material carries, in order. |
+| `carryFeatures` | function | Give a copy of a material the same features (its GLSL patch, cache key and node settings). |
 | `addFeature` | function | Give a material a feature. |
 | `nodeReady` | function | Can this material be drawn by the node renderer (every feature it carries is ported)? |
 | `instanceColumn` | function | Column `k` of the instance's matrix (`instanceMatrix[k].xyz` in GLSL; the identity's for a plain mesh): 0–2 the scaled axes, 3 the offset. |
@@ -150,6 +151,20 @@ Kynds Engine (docs/ENGINE_PLAN.md, M5): material features. A feature is one look
 | `SCENE_FOG` | const | The scene's linear fog for node materials that work out their own fog (a billboard's view depth isn't the one three's fog node reads): set by whoever owns the scene's fog. |
 | `linearFog` | function | `mix(colour, fog, smoothstep(near, far, depth))` from SCENE_FOG, as GLSL's `fog_fragment` does for linear fog. |
 | `toNodeMaterial` | function | The same material as a `MeshStandardNodeMaterial`: its plain settings copied, then each feature's node version applied. |
+
+## `render/backend.ts`
+
+The render backend (Kynds Engine M5b). The classic build draws with WebGLRenderer. The WebGPU edition is the same code built with `three` mapped to `three/webgpu` (`npm run build:gpu`, or `vite --mode gpu`; see vite.config.ts): one copy of the library, which has WebGPURenderer (with its own WebGL2 fallback) and no WebGLRenderer. Everything that makes a renderer goes through `createRenderer`, so game code never names either class. WebGPURenderer draws node materials. Plain materials it converts itself; a material carrying features (MaterialFeatures) or a hand-written shader with a port gets its node version from `prepareForGPU`, run over a scene before it's drawn. A GLSL shader with no port can't be drawn at all, so its mesh is hidden (and named once in the console) rather than breaking the frame.
+
+| Export | Kind | What it is |
+| --- | --- | --- |
+| `GPU_EDITION` | const | True in the WebGPU edition. |
+| `VIEWPORT_FROM_TOP` | const | Whether a renderer's viewport and scissor are measured from the canvas's top edge (WebGPURenderer, either backend) rather than its bottom (WebGLRenderer). |
+| `RendererOptions` | interface |  |
+| `createRenderer` | function | Make a renderer: WebGLRenderer in the classic build, WebGPURenderer in the WebGPU edition. |
+| `backendName` | function | Which backend is actually drawing: 'webgl' (classic), 'webgpu', or 'webgl2' (WebGPURenderer's fallback). |
+| `gpuSourceOf` | function | The features (and shader port) a material drawn in the WebGPU edition came from. |
+| `prepareForGPU` | function | Give every mesh under `root` its node material (WebGPU edition only; a no-op in the classic build). |
 
 ## `render/coplanar.ts`
 
@@ -188,6 +203,12 @@ Kynds Engine (docs/ENGINE_PLAN.md, M3): freeing what a part of the world held on
 | `Held` | interface | Kynds Engine (docs/ENGINE_PLAN.md, M3): freeing what a part of the world held on the GPU once it is unloaded, without breaking anything still on show. |
 | `heldBy` | function | Every geometry, material and texture a tree of objects uses (including skinned and instanced). |
 | `releaseUnshared` | function | Release what `gone` holds and no `kept` root holds. |
+
+## `render/three-gpu.ts`
+
+| Export | Kind | What it is |
+| --- | --- | --- |
+| `WebGLRenderer` | class |  |
 
 ## `sim/Archive.ts`
 

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { carryFeatures } from './MaterialFeatures.ts';
 
 export interface Instance {
   matrix: THREE.Matrix4;
@@ -23,11 +24,7 @@ const _c = new THREE.Vector3();
  * nears instead of popping in a block at a time. Shader patches and their shared uniforms carry over.
  */
 function fadeable<M extends THREE.Material>(m: M): M {
-  const c = m.clone() as M;
-  c.onBeforeCompile = m.onBeforeCompile;
-  c.customProgramCacheKey = m.customProgramCacheKey;
-  // (clone() copies userData through JSON, which would break the features' shared uniforms.)
-  if (m.userData.features) c.userData.features = m.userData.features;
+  const c = carryFeatures(m, m.clone() as M);
   c.alphaHash = true;
   c.opacity = 1;
   return c;

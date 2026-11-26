@@ -841,6 +841,8 @@ export interface AvatarState {
   traits?: readonly string[];
   /** Looking at a social or work target suppresses random eye wandering. */
   engaged?: boolean;
+  /** Sitting for a portrait: no idle habits (a glance over the shoulder), eyes to the front. */
+  posing?: boolean;
   /** Astride a horse (drawn in its saddle). */
   riding?: boolean;
   /** Getting up into the saddle or down from it: 0 on the ground beside the horse, 1 seated. */
@@ -1275,7 +1277,7 @@ const BODY_GRAPH = new PoseGraph<Joint, BodyCtx>(basePose)
   // Now and then, a habit: a rub of the neck, a stretch, a look over the shoulder (hands free).
   .add({
     name: 'habit',
-    when: (c) => still(c) && c.state.activity === 'idle' && !c.state.carrying && (c.state.posture === 'stand' || c.state.posture === 'sit'),
+    when: (c) => still(c) && !c.state.posing && c.state.activity === 'idle' && !c.state.carrying && (c.state.posture === 'stand' || c.state.posture === 'sit'),
     apply: (p, c) => habitLayer(p, c.time + c.seed * 7, c.state.posture === 'sit'),
   })
   // Holding something, standing about: the upper arm hangs, the forearm forward, the thing at
@@ -1285,6 +1287,8 @@ const BODY_GRAPH = new PoseGraph<Joint, BodyCtx>(basePose)
     when: (c) => still(c) && !!c.state.carrying && c.state.activity === 'idle',
     apply: (p, c) => Object.assign(p, { shRx: -0.14, elR: -1.22, shRz: 0.14, twistR: c.state.carrying === 'pot' || c.state.carrying === 'bowl' ? -0.6 : 0 }),
   })
+  // Sitting for a portrait: face square to the painter (no idle turn of the head or twist).
+  .add({ name: 'portrait', when: (c) => !!c.state.posing, apply: (p) => { p.neckTurn = 0; p.spineTwist = 0; } })
   .add({ name: 'plant feet', when: (c) => still(c) && c.state.posture === 'stand', apply: (p) => plantFeet(p) });
 
 export class KyndAvatar {
@@ -2178,7 +2182,7 @@ export class KyndAvatar {
     const beat = Math.floor((time + this.seed) / 2.3);
     const r1 = Math.sin(beat * 12.9898 + this.seed) * 43758.5453;
     const r2 = Math.sin(beat * 78.233 + this.seed) * 12345.678;
-    const wander = state.engaged || state.activity !== 'idle' ? 0.18 : 1;
+    const wander = state.posing ? 0 : state.engaged || state.activity !== 'idle' ? 0.18 : 1;
     target.lookX += ((r1 - Math.floor(r1)) - 0.5) * 0.35 * wander + Math.max(-0.5, Math.min(0.5, this.eyeTurn));
     target.lookY += ((r2 - Math.floor(r2)) - 0.5) * 0.12 * wander;
     // A glance often comes with a blink, and now and then a quick double blink.
