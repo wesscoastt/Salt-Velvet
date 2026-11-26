@@ -25,7 +25,7 @@ const FILES = [
   'render/KyndAvatar.ts', 'render/KyndGarments.ts', 'render/kyndBody.ts', 'render/kyndFace.ts',
   'render/kyndFaceTexture.ts', 'render/kyndMaterials.ts', 'render/kyndGeometry.ts', 'render/kyndHand.ts',
   'render/kyndAnatomy.ts', 'render/sdfMesh.ts', 'render/kit.ts', 'render/detailMaterial.ts', 'engine/render/MaterialFeatures.ts', 'engine/core/Registry.ts', 'engine/anim/ik.ts', 'engine/anim/pose.ts', 'engine/anim/rig.ts',
-  'render/textures.ts', 'render/LanceMesh.ts',
+  'render/textures.ts', 'render/LanceMesh.ts', 'render/mocapGait.ts',
   'sim/entities/appearance.ts', 'sim/family/genetics.ts', 'core/Rng.ts',
 ];
 

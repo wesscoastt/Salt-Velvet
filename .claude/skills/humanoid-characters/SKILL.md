@@ -51,6 +51,13 @@ draw calls a head. The code lives in Kynds: Medieval (`src/render/kynd*.ts`, `Ky
 posture, then activity, then life (breathing, weight shift), trait and mood body language, idle
 habits (`idleHabit`), the walk; the rig eases toward them, so every change blends. The face rig
 blinks, glances, and shapes brows, lids and mouth from emotion (`expressionFor`).
+**The walk and jog strides are motion-captured** (`render/mocapGait.ts`, baked by Kynds:
+Medieval's `scripts/bake-mocap.mjs` from the CC0 Quaternius Universal Animation Library, as
+shipped in the game-character-kit skill). Each joint's curve through the stride is measured as the
+walk's own angles and stored as a 0…1 shape; `GAIT_RANGE` in KyndAvatar gives each channel its
+size (kept upright and easy: the raw clips are a crouched, leaning game walk). `gaitAt(phase,
+running)` is the stride at a phase; `tests/mocap-gait.test.ts` checks it loops, no joint turns
+faster than a person's, the legs mirror, and the thigh's arc matches the stride (no foot skate).
 **Solve, don't guess, where a hand must touch something.** `reachFor` (a cup to the lips) and
 `bookGrip` (both hands on an open book) run a small coordinate search over the arm's angles on
 the person's own skeleton, once per item/posture, cached; so a child's arms and a tall man's

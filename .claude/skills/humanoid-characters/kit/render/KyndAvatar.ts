@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { GAIT_KEYS, JOG_CYCLE, WALK_CYCLE, type GaitKey } from './mocapGait.ts';
 import { portShader, type TNode } from '../engine/render/MaterialFeatures.ts';
 import { crouchAngle } from '../engine/anim/ik.ts';
 import { easeFactor, easePose, PoseClip, PoseGraph } from '../engine/anim/pose.ts';
@@ -565,24 +566,52 @@ function activityLayer(p: Pose, activity: Activity, t: number, posture: Posture)
   }
 }
 
+/**
+ * Each gait channel's range [at the curve's low, at its high] for the Kynd: the motion-captured
+ * walk and jog (render/mocapGait.ts) give the shape and timing through the stride, these the size,
+ * kept near the old hand-made gait so Kynds still walk upright and easy (the clips are a stylised
+ * game walk: crouched, leaning, elbows bent).
+ */
+const GAIT_RANGE: Record<'walk' | 'jog', Record<string, [number, number]>> = {
+  walk: { hip: [-0.64, 0.4], knee: [0.06, 0.98], ankle: [-0.2, 0.5], shx: [-0.4, 0.32], shz: [0.05, 0.13], el: [-0.55, -0.2], spine: [0.015, 0.045], spineTwist: [-0.08, 0.08], pelvisY: [-0.04, 0] },
+  jog: { hip: [-0.95, 0.5], knee: [0.12, 1.7], ankle: [-0.3, 0.75], shx: [-0.85, 0.5], shz: [0.06, 0.16], el: [-1.5, -1.1], spine: [0.15, 0.22], spineTwist: [-0.13, 0.13], pelvisY: [-0.07, 0] },
+};
+const GAIT_CHANNEL: Record<GaitKey, string> = {
+  hipL: 'hip', hipR: 'hip', kneeL: 'knee', kneeR: 'knee', ankleL: 'ankle', ankleR: 'ankle', shLx: 'shx', shRx: 'shx',
+  shLz: 'shz', shRz: 'shz', elL: 'el', elR: 'el', spine: 'spine', spineTwist: 'spineTwist', pelvisY: 'pelvisY',
+};
+
+/** The gait at this phase (radians, 2π a stride), each channel in the Kynd's range. */
+export function gaitAt(phase: number, running: boolean): Record<GaitKey, number> {
+  const cycle = running ? JOG_CYCLE : WALK_CYCLE, ranges = GAIT_RANGE[running ? 'jog' : 'walk'];
+  const f = ((((phase / (Math.PI * 2)) % 1) + 1) % 1) * cycle.length;
+  const i0 = Math.floor(f) % cycle.length, i1 = (i0 + 1) % cycle.length, u = f - Math.floor(f);
+  const out = {} as Record<GaitKey, number>;
+  GAIT_KEYS.forEach((k, j) => {
+    const v = cycle[i0][j] + (cycle[i1][j] - cycle[i0][j]) * u;
+    const [lo, hi] = ranges[GAIT_CHANNEL[k]];
+    out[k] = lo + (hi - lo) * v;
+  });
+  return out;
+}
+
 export function walkLayer(p: Pose, phase: number, running: boolean, carrying: CarryItem, limp = false): void {
   // A hobble (a sprained right ankle): the bad step is hurried through, so the rhythm goes uneven.
   if (limp) phase += 0.45 * Math.sin(phase);
-  const amp = running ? 0.75 : 0.48;
   const s = Math.sin(phase);
-  p.hipL = -amp * s;
-  p.hipR = amp * s;
-  p.kneeL = 0.12 + (running ? 1.1 : 0.7) * Math.max(0, Math.sin(phase + 1.9));
-  p.kneeR = 0.12 + (running ? 1.1 : 0.7) * Math.max(0, Math.sin(phase + 1.9 + Math.PI));
-  // A planted, readable life-sim gait: the hips settle over the weight-bearing foot while the
-  // chest counters the stride. Driving this from distanceWalked keeps the feet from skating.
-  p.pelvisY = STAND_HIP - (running ? 0.05 : 0.035) + (running ? 0.055 : 0.035) * Math.abs(Math.cos(phase));
-  p.spine = (running ? 0.18 : 0.03) + Math.cos(phase * 2) * (running ? 0.025 : 0.012);
-  p.spineTwist = -s * (running ? 0.12 : 0.075);
-  // Heel strike with the toes up as the leg reaches forward, a push off the toes as it trails.
-  const push = running ? 0.55 : 0.38;
-  p.ankleL = push * Math.max(0, Math.sin(phase + 1.9 + 0.55)) - 0.14 * Math.max(0, s);
-  p.ankleR = push * Math.max(0, Math.sin(phase + 1.9 + 0.55 + Math.PI)) - 0.14 * Math.max(0, -s);
+  // The stride itself, from motion capture: the knee's double bend, heel strike and push-off, the
+  // pelvis settling twice a stride, the arms lagging the legs. Driven from distanceWalked, so the
+  // feet don't skate.
+  const g = gaitAt(phase, running);
+  p.hipL = g.hipL;
+  p.hipR = g.hipR;
+  p.kneeL = g.kneeL;
+  p.kneeR = g.kneeR;
+  p.ankleL = g.ankleL;
+  p.ankleR = g.ankleR;
+  p.pelvisY = STAND_HIP + g.pelvisY;
+  p.spine = g.spine;
+  p.spineTwist = g.spineTwist;
   p.neckTurn = s * (running ? 0.045 : 0.025);
   if (limp) {
     // The bad leg barely bends and swings out round, not through; its forward step is short.
@@ -597,15 +626,13 @@ export function walkLayer(p: Pose, phase: number, running: boolean, carrying: Ca
   if (carrying) {
     Object.assign(p, { shLx: -0.5, elL: -1.15, shLz: -0.08, shRx: -0.5, elR: -1.15, shRz: -0.08 });
   } else {
-    // Arms swing against the legs, the elbow bending as the arm comes forward and easing
-    // straighter as it swings back, so the swing reads from any side.
-    p.shLx = amp * 0.95 * s;
-    p.shRx = -amp * 0.95 * s;
-    p.shLz = 0.09 - s * 0.04;
-    p.shRz = 0.09 + s * 0.04;
-    const bend = running ? 1.25 : 0.22;
-    p.elL = -(bend + (running ? 0.2 : 0.38) * Math.max(0, -s));
-    p.elR = -(bend + (running ? 0.2 : 0.38) * Math.max(0, s));
+    // Arms swing against the legs (motion capture), the elbow bending as the arm comes forward.
+    p.shLx = g.shLx;
+    p.shRx = g.shRx;
+    p.shLz = g.shLz;
+    p.shRz = g.shRz;
+    p.elL = g.elL;
+    p.elR = g.elR;
   }
 }
 
