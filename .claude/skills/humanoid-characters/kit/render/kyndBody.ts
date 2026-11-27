@@ -273,6 +273,8 @@ export interface Palette {
   hairDark: THREE.Color;
   hairLight: THREE.Color;
   brow: THREE.Color;
+  /** The beard's own colour (the hair's, unless the Kynd has a beard of another colour). */
+  beard: THREE.Color;
   lash: THREE.Color;
   iris: THREE.Color;
   tunic: THREE.Color;
@@ -297,6 +299,7 @@ export function palette(look: FullAppearance): Palette {
     hairDark: shade(hair, 0.55),
     hairLight: mixCol(hair, col('#fff3dc'), 0.22),
     brow: shade(hair, lum > 0.35 ? 0.62 : 0.85),
+    beard: look.beardColour ? col(look.beardColour) : hair,
     lash: mixCol(shade(hair, 0.3), col('#140c08'), 0.7),
     iris: col(look.eyes),
     tunic: col(look.tunic),
@@ -1864,10 +1867,17 @@ export const neckZ = (y: number): number => -0.012 + ((y - 1.43) / 0.23) * 0.004
  * beard is a shell that feathers out to nothing along a ragged cheek line, over a shadow of stubble
  * (set in `KyndAvatar`), so it grows out of the skin instead of sitting on it.
  */
+/** The beard's tones (its colour, darker and lighter), from its own colour or the hair's. */
+function beardTones(C: Palette): { hair: THREE.Color; hairDark: THREE.Color; hairLight: THREE.Color } {
+  if (C.beard === C.hair) return { hair: C.hair, hairDark: C.hairDark, hairLight: C.hairLight };
+  return { hair: C.beard, hairDark: shade(C.beard, 0.55), hairLight: mixCol(C.beard, col('#fff3dc'), 0.22) };
+}
+
 export function buildBeard(B: BodyBuckets, head: Head, C: Palette, style: string, under?: FrontProbe): void {
   if (style === 'none' || style === 'stubble') return;
+  const T = beardTones(C);
   const f = head.f;
-  const beardC = mixCol(C.hair, C.hairDark, 0.3);
+  const beardC = mixCol(T.hair, T.hairDark, 0.3);
   const tmp = new THREE.Vector3();
   const full = style === 'full' || style === 'forked' || style === 'braided';
   const goatee = style === 'goatee';
@@ -1899,9 +1909,9 @@ export function buildBeard(B: BodyBuckets, head: Head, C: Palette, style: string
     },
     paint: (u, v) => {
       const streak = Math.sin(u * 23 + 0.7) * 0.5 + Math.sin(u * 51) * 0.5;
-      const c = mixCol(beardC, streak > 0 ? C.hairLight : C.hairDark, Math.abs(streak) * 0.18);
+      const c = mixCol(beardC, streak > 0 ? T.hairLight : T.hairDark, Math.abs(streak) * 0.18);
       // Grows from the skin at the top; catches the light across the middle.
-      return { c: mixCol(mixCol(c, C.skin, Math.max(smoothstep(0.16, 0, v) * 0.8, smoothstep(0.82, 1, Math.abs(u)) * 0.5)), C.hairLight, Math.exp(-(((v - 0.4) / 0.2) ** 2)) * 0.12) };
+      return { c: mixCol(mixCol(c, C.skin, Math.max(smoothstep(0.16, 0, v) * 0.8, smoothstep(0.82, 1, Math.abs(u)) * 0.5)), T.hairLight, Math.exp(-(((v - 0.4) / 0.2) ** 2)) * 0.12) };
     },
     weights: (p) => faceWeights(p, f),
     // Streaks follow the combing: across the lip they fan outward from the middle.
@@ -1953,7 +1963,7 @@ export function buildBeard(B: BodyBuckets, head: Head, C: Palette, style: string
     at: beardAt,
     // Sparser (so the skin shows through) at the cheek line; a lighter band where the light catches.
     // At the cheek line it fades right into the skin (with the stubble under it), so there is no edge.
-    paint: (theta, t) => ({ c: mixCol(mixCol(beardC, C.skin, Math.max(Math.pow(smoothstep(0.2, 0.0, t), 0.8) * 0.9, goatee ? (1 - goateeEdge(theta)) * 0.95 : 0)), C.hairLight, Math.exp(-(((t - 0.45) / 0.2) ** 2)) * 0.25 * Math.cos(theta)) }),
+    paint: (theta, t) => ({ c: mixCol(mixCol(beardC, C.skin, Math.max(Math.pow(smoothstep(0.2, 0.0, t), 0.8) * 0.9, goatee ? (1 - goateeEdge(theta)) * 0.95 : 0)), T.hairLight, Math.exp(-(((t - 0.45) / 0.2) ** 2)) * 0.25 * Math.cos(theta)) }),
     weights: (p) => faceWeights(p, f),
     uv: (theta, t) => [theta * 2, t],
   });
@@ -1981,10 +1991,11 @@ export function buildBeard(B: BodyBuckets, head: Head, C: Palette, style: string
 
 /** A small three-strand plait (for beards), bound near its end with a metal ring, the tip a brush. */
 function beardBraid(B: BodyBuckets, C: Palette, pts: THREE.Vector3[], r0: number, weights: (p: THREE.Vector3) => Weights): void {
+  const T = beardTones(C);
   const path = new Path(pts, 30);
   const endT = 0.84;
   const lobes = 7;
-  const beardC = mixCol(C.hair, C.hairDark, 0.3);
+  const beardC = mixCol(T.hair, T.hairDark, 0.3);
   for (let k = 0; k < 3; k++) {
     const phase = (k * 2 * Math.PI) / 3;
     const N = 40;
@@ -2004,7 +2015,7 @@ function beardBraid(B: BodyBuckets, C: Palette, pts: THREE.Vector3[], r0: number
       },
       paint: (t) => {
         const over = 0.5 + 0.5 * Math.sin(2 * (2 * Math.PI * (lobes / 3) * t + phase));
-        return { c: over > 0.5 ? mixCol(beardC, C.hairLight, (over - 0.5) * 0.6) : mixCol(C.hairDark, beardC, 0.35 + over * 1.3) };
+        return { c: over > 0.5 ? mixCol(beardC, T.hairLight, (over - 0.5) * 0.6) : mixCol(T.hairDark, beardC, 0.35 + over * 1.3) };
       },
       weights,
       seg: 6,
@@ -2028,7 +2039,7 @@ function beardBraid(B: BodyBuckets, C: Palette, pts: THREE.Vector3[], r0: number
       const r = r0 * (0.35 + 0.3 * Math.sin(Math.min(1, t * 1.3) * Math.PI * 0.6)) * (1 - Math.pow(t, 3) * 0.8) + 0.0006;
       return [r * 0.8, r];
     },
-    paint: (t) => ({ c: mixCol(beardC, C.hairLight, t * 0.25) }),
+    paint: (t) => ({ c: mixCol(beardC, T.hairLight, t * 0.25) }),
     weights: (p) => weights(p),
     seg: 7,
     steps: 5,

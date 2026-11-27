@@ -97,4 +97,8 @@ export interface KyndAppearance {
   forehead?: number;
   freckles?: boolean;
   scar?: boolean;
+  /** Grey coming into the hair (and beard, a little ahead of it) before old age: 0 none … 1 mostly grey. */
+  greying?: number;
+  /** A beard of its own colour (often redder than the hair); null or absent = the hair's colour. */
+  beardColour?: string | null;
 }

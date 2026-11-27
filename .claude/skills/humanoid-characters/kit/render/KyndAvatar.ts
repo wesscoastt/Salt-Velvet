@@ -1192,7 +1192,7 @@ function acquireBody(L: FullAppearance, stage: LifeStage, detail = 1): BuiltBody
   const { B, m, head, C } = atDetail(detail, () => buildBodyBuckets(L, stage));
   const geos: Partial<Record<PartName, THREE.BufferGeometry>> = {};
   for (const name of PARTS) if (B[name].vertexCount > 0) geos[name] = B[name].toGeometry(name === 'garment' || name === 'shoes' || name === 'hat', name === 'skin' || name === 'feet' || name === 'bare');
-  const lum = C.hair.r * 0.3 + C.hair.g * 0.55 + C.hair.b * 0.15;
+  const lum = C.beard.r * 0.3 + C.beard.g * 0.55 + C.beard.b * 0.15;
   const skin: FaceDetail = {
     age: stage === 'elder' ? 1 : grown ? 0.3 : 0,
     stubble: stubbleFor(L.beardStyle, lum, L.sex, grown),
@@ -1251,6 +1251,24 @@ function releaseBody(key: string): void {
  * (`lum`, its luminance). A beard grows out of a shadow of stubble, which softens its edge on the
  * cheek; dark-haired clean-shaven men show a five o'clock shadow.
  */
+/**
+ * The look as worn at a life stage: grey coming in (elders mostly; grown Kynds as much as their
+ * `greying`, the beard a little ahead of the hair), no beard before manhood, the outfit cut for the stage.
+ */
+export function stageLook(full: FullAppearance, stage: LifeStage): FullAppearance {
+  const grown = stage === 'adult' || stage === 'elder';
+  const grey = stage === 'elder' ? 0.8 + 0.2 * full.greying : grown ? full.greying * 0.85 : 0;
+  return {
+    ...full,
+    hair: grey > 0 ? greyed(full.hair, grey) : full.hair,
+    beardColour: grey > 0 && (full.beardColour || full.greying > 0) ? greyed(full.beardColour ?? full.hair, Math.min(1, grey * 1.2)) : full.beardColour,
+    beardStyle: grown ? full.beardStyle : 'none',
+    outfit: outfitAt(full.outfit, full.sex, stage),
+    // (Kept for the cut of children's clothes: a lord's child is dressed richly.)
+    wardrobe: full.outfit,
+  } as FullAppearance;
+}
+
 export function stubbleFor(beard: string, lum: number, sex: string, grown: boolean): number {
   if (beard === 'stubble') return lum < 0.3 ? 1 : 0.6;
   if (beard === 'short' || beard === 'full' || beard === 'forked' || beard === 'braided') return lum < 0.3 ? 0.85 : 0.5;
@@ -1393,14 +1411,7 @@ export class KyndAvatar {
     const full = normalizeAppearance(look);
     this.cornersUp = (full.mouthCorners - 0.5) * 0.0042;
     const grown = stage === 'adult' || stage === 'elder';
-    const L: FullAppearance = {
-      ...full,
-      hair: stage === 'elder' ? greyed(full.hair, 0.8) : full.hair,
-      beardStyle: grown ? full.beardStyle : 'none',
-      outfit: outfitAt(full.outfit, full.sex, stage),
-      // (Kept for the cut of children's clothes: a lord's child is dressed richly.)
-      wardrobe: full.outfit,
-    } as FullAppearance;
+    const L = stageLook(full, stage);
     if (stage === 'infant') {
       this.shadow = new THREE.Mesh();
       this.buildInfant(L);

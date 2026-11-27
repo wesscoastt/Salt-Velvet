@@ -215,6 +215,9 @@ export function randomAppearance(rng: Rng, sex: Sex, tier = 2): KyndAppearance {
   if (noble) look.trim = r.pick(['#d9b25a', '#e8e2c8', '#c9a44c'] as const);
   look.cloak = r.next() < (noble ? 0.5 : 0.18) ? r.pick(noble ? RICH : ['#3a2a1c', '#4a4f5a', '#2f2a26', '#5a4a3a', '#2f5a5a', '#6b4a2e']) : null;
   look.scar = sex === 'male' ? r.next() < 0.08 : r.next() < 0.02;
+  // Some beards come in redder than the hair (their own stream, so no other looks change).
+  const br = sideRng(rng, 71);
+  if (beardStyle !== 'none' && beardStyle !== 'stubble' && br.next() < 0.25) look.beardColour = mixColor(look.hair, '#a8552b', br.range(0.3, 0.6));
   if (noble && look.tunic && !RICH.includes(look.tunic)) look.tunic = r.pick(CLOTH_COLOURS.slice(8));
   return look;
 }
