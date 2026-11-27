@@ -23249,6 +23249,9 @@ var Actor = {
             K.box(0.004, 0.006, 0.006, 0, -0.176, 0.034, dark);
             K.box(0.004, 0.006, 0.006, -0.005, 0.02, 0.034, dark); K.box(0.004, 0.006, 0.006, 0.005, 0.02, 0.034, dark);
             K.box(0.022, 0.15, 0.012, 0, -0.105, -0.005, blue);
+            /* the frame behind the trigger guard up to the tang, so the grip and hammer sit on it */
+            K.box(0.0225, 0.078, 0.016, 0, 0.008, -0.006, blue);
+
             K.box(0.006, 0.04, 0.004, 0, -0.045, -0.034, blue);
             K.box(0.006, 0.004, 0.026, 0, -0.064, -0.022, blue, 0.35, 0, 0);
             K.box(0.0045, 0.006, 0.016, 0, -0.033, -0.02, edge, 0.15, 0, 0);
@@ -23262,7 +23265,7 @@ var Actor = {
             K.box(0.018, 0.012, 0.012, 0, 0.038, -0.006, blue, -0.5, 0, 0);
             K.box(0.007, 0.008, 0.012, 0, 0.037, 0.012, dark, 0.45, 0, 0);
             K.box(0.003, 0.016, 0.006, -0.0125, -0.02, 0.0, edge);
-            var merged = SV.util.mergeGroup(g, new THREE.MeshPhongMaterial({ vertexColors: true, shininess: 70, specular: 0x555555 }));
+            var merged = SV.util.mergeGroup(g, this._gunMaterial());
             this._pistolGeo = merged.geometry; this._pistolMat = merged.material;
         }
         return new THREE.Mesh(this._pistolGeo, this._pistolMat);
@@ -23301,8 +23304,9 @@ var Actor = {
                 K.cyl(0.0034, 0.0034, 0.003, 0, -0.1505, 0.022, 0x050505, 0, 0, 10);
                 P([[-0.128, 0.029], [-0.142, 0.029], [-0.146, 0.035], [-0.14, 0.036]], 0.003, blue, 0.0006);
                 K.box(0.003, 0.05, 0.002, 0, -0.012, 0.0342, dark);
-                K.cyl(0.0038, 0.0038, 0.06, 0, -0.08, 0.005, blue, 0, 0, 8);
-                K.cyl(0.0046, 0.0046, 0.006, 0, -0.112, 0.005, edge, 0, 0, 8);
+                K.cyl(0.0026, 0.0026, 0.046, 0, -0.07, 0.0095, edge, 0, 0, 8);
+                K.cyl(0.0034, 0.0034, 0.005, 0, -0.095, 0.0095, edge, 0, 0, 8);
+                K.box(0.008, 0.012, 0.009, 0, -0.103, 0.0125, blue);
                 K.box(0.007, 0.016, 0.02, 0, 0.024, 0.03, blue, 0.7, 0, 0);
                 K.box(0.0072, 0.004, 0.012, 0, 0.031, 0.04, edge, 0.7, 0, 0);
                 K.ring(0.015, 0.0022, 0, -0.012, -0.022, blue, 0, Math.PI / 2, Math.PI * 1.25);
@@ -23378,10 +23382,39 @@ var Actor = {
                 K.box(0.005, 0.005, 0.02, 0, -0.005, -0.002, edge, 0.2, 0, 0);
                 K.cyl(0.006, 0.006, 0.012, 0, -0.56, 0.018, edge, 0, Math.PI / 2, 8);
             }
-            var merged = SV.util.mergeGroup(g, new THREE.MeshPhongMaterial({ vertexColors: true, shininess: 60, specular: 0x4a4a4a }));
+            var merged = SV.util.mergeGroup(g, this._gunMaterial());
             this._gunGeos[kind] = merged;
         }
         return new THREE.Mesh(this._gunGeos[kind].geometry, this._gunGeos[kind].material);
+    },
+    /* one material for every gun: blued steel glossy, walnut matte and grained. The wood is found
+       by its colour (red over green over blue, and green well under red, which leaves brass out);
+       the grain runs along the gun (gun space: barrel down -y), so stocks and fore-ends grain
+       lengthwise and never swim as the gun moves */
+    _gunMaterial: function () {
+        if (this._gunMat) { return this._gunMat; }
+        var m = new THREE.MeshPhongMaterial({ vertexColors: true, shininess: 70, specular: 0x555555 });
+        m.onBeforeCompile = function (sh) {
+            sh.vertexShader = sh.vertexShader
+                .replace('#include <common>', '#include <common>\nvarying vec3 vGunP;')
+                .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGunP = position;');
+            sh.fragmentShader = sh.fragmentShader
+                .replace('#include <common>', '#include <common>\nvarying vec3 vGunP;\nfloat gunWood;')
+                .replace('#include <color_fragment>', '#include <color_fragment>\n' +
+                    '{ vec3 c = diffuseColor.rgb;\n' +
+                    '  gunWood = step(0.05, c.r - c.b) * step(c.b, c.g) * step(c.g, c.r * 0.68);\n' +
+                    '  float wv = sin(vGunP.y * 23.0 + vGunP.x * 60.0) * 1.6 + sin(vGunP.y * 61.0) * 0.5;\n' +
+                    '  float gr = 0.5 + 0.5 * sin(vGunP.z * 260.0 + wv + sin(vGunP.x * 150.0) * 0.7);\n' +
+                    '  gr = gr * gr * gr;\n' +
+                    '  float fig = 0.5 + 0.5 * sin(vGunP.y * 9.0 + vGunP.z * 40.0);\n' +
+                    '  c *= mix(1.0, mix(0.74, 1.0, 1.0 - gr) * mix(0.9, 1.08, fig), gunWood);\n' +
+                    '  c = mix(c, c * vec3(0.96, 0.98, 1.06), (1.0 - gunWood) * step(abs(c.r - c.b), 0.05));\n' +
+                    '  diffuseColor.rgb = c; }')
+                .replace('#include <specularmap_fragment>', '#include <specularmap_fragment>\nspecularStrength *= mix(1.0, 0.22, gunWood);');
+        };
+        m.customProgramCacheKey = function () { return 'svGun'; };
+        this._gunMat = m;
+        return m;
     },
     _gunKindOf: function (id) {
         if (typeof Arsenal !== 'undefined' && Arsenal._kind) { var k = Arsenal._kind(id); return k === 'fists' ? null : k; }
