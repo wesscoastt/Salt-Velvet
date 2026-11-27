@@ -407,9 +407,11 @@ function relief(x: number, y: number, s: HeadShape, f: FaceLayout): number {
   dz -= 0.0048 * g(ax - f.eyeX * 1.02, y - (f.eyeY + 0.001), 0.021, 0.0155);
   // Cheekbones, the soft cheek below (fuller on children), and the hollow under the cheekbone.
   const cbY = f.eyeY - 0.027 + (s.cheekboneHeight - 0.5) * 0.016;
-  dz += (0.0012 + s.cheeks * 0.0078) * g(ax - (0.045 + s.width * 0.014), y - cbY, 0.019, 0.0145);
-  dz += (0.0024 + s.child * 0.0045) * lerp(0.35, 2.1, s.cheekFullness) * g(ax - 0.037, y - (f.eyeY - 0.044), 0.017, 0.016);
-  dz -= grown * (0.0006 + s.cheeks * 0.0018 + s.age * 0.001) * lerp(1.8, 0.2, s.cheekFullness) * g(ax - 0.05, y - (f.mouthY + 0.008), 0.013, 0.014);
+  // (Kept within a living face: the full range once gave defined cheekbones over hollow cheeks a
+  // hard shadowed plane down to the jaw that read as a skull. Age still deepens the hollow.)
+  dz += (0.0014 + s.cheeks * 0.005) * g(ax - (0.045 + s.width * 0.014), y - cbY, 0.019, 0.0145);
+  dz += (0.0024 + s.child * 0.0045) * lerp(0.75, 2.1, s.cheekFullness) * g(ax - 0.037, y - (f.eyeY - 0.044), 0.017, 0.016);
+  dz -= grown * (0.0003 + s.cheeks * 0.0008 + s.age * 0.0012) * lerp(1.2, 0.15, s.cheekFullness) * (s.female ? 0.6 : 1) * g(ax - 0.05, y - (f.mouthY + 0.008), 0.013, 0.014);
   // Muzzle (the tooth arch) and chin.
   dz += 0.0062 * g(x, y - (f.mouthY + 0.005), 0.032, 0.024);
   // The chin: a rounded pad, standing forward (receding … strong), pointed or broad; a broad one

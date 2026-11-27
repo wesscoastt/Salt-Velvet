@@ -1529,6 +1529,52 @@ export function buildHair(B: BodyBuckets, head: Head, C: Palette, look: FullAppe
       weights: (p) => neckAt(p),
       uv: (i, t) => [loop[Math.round(i)].u * 3, t * 3],
     });
+    // Strands over the fall: flat locks lying on the sheet, each its own shade, the longer ones
+    // running on past the sheet's end in tapering wisps, so the hair ends in strands rather than
+    // a cut edge and the fall reads as hair, not one smooth panel.
+    const STRANDS = style === 'bob' ? 22 : 40;
+    const hash = (k: number) => {
+      const v = Math.sin(k * 78.233 + 12.9898) * 43758.5453;
+      return v - Math.floor(v);
+    };
+    for (let i = 0; i < STRANDS; i++) {
+      const u = lerp(-span * 0.94, span * 0.94, (i + 0.15 + hash(i) * 0.7) / STRANDS);
+      // (Starting below the crown's volume, and for half-up below the drawn-back top, so the
+      // strands never thicken the hair round the head.)
+      const t0 = (style === 'half_up' ? 0.5 : 0.3) + hash(i + 31) * 0.2;
+      // Past the end of the sheet: a wisp 0–4.5 cm long, down the back only (at the sides the
+      // sheet ends above the shoulders, and a wisp hanging from there would fall into them).
+      const wisp = (style === 'bob' ? 0.012 : 0.045) * hash(i + 57) * smoothstep(1.3, 0.8, Math.abs(u));
+      const pts: THREE.Vector3[] = [];
+      const K = 9;
+      for (let k = 0; k <= K; k++) {
+        const t = lerp(t0, 1, k / K);
+        at(u + Math.sin(t * 5 + i) * 0.012, t, false, tmp);
+        // Lying just on the sheet, pushed out along its own radius.
+        const rr = Math.hypot(tmp.x, tmp.z) || 1;
+        pts.push(new THREE.Vector3(tmp.x * (1 + 0.0025 / rr), tmp.y, tmp.z * (1 + 0.0025 / rr)));
+      }
+      if (wisp > 0.006) {
+        const end = pts[pts.length - 1], prev = pts[pts.length - 2];
+        const dir = end.clone().sub(prev).normalize();
+        for (const f of [0.5, 1]) {
+          const q = end.clone().addScaledVector(dir, wisp * f);
+          // (Hanging straight down from the sheet's end.)
+          q.y = end.y - wisp * f;
+          pts.push(q);
+        }
+      }
+      const shadeK = hash(i + 91);
+      const base = mixCol(mixCol(C.hairDark, C.hair, 0.55 + shadeK * 0.4), C.hairLight, shadeK > 0.78 ? 0.2 : 0);
+      const w = 0.005 + hash(i + 7) * 0.004;
+      tube(B.hair, new Path(pts, 24), {
+        radius: (t) => [0.0014 * capsuleR(t, 0.08, 0.3), w * (1 - smoothstep(0.55, 1, t) * 0.85) * capsuleR(t, 0.1, 0.12)],
+        paint: (t) => ({ c: mixCol(base, C.hairLight, ridge(u) * 0.18 * smoothstep(0.15, 0.4, t) * smoothstep(0.9, 0.55, t)) }),
+        weights: (p) => neckAt(p),
+        seg: 5,
+        steps: 18,
+      });
+    }
   }
 
   // Braids: three strands plaited over and under one another, tied off with a tuft. Each strand is
