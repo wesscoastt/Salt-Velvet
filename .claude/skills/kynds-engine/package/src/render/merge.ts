@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { carryFeatures, featureSignature } from './MaterialFeatures.ts';
 
 /**
  * Draw-call reduction for procedurally built models. Each little box or lathe is its own draw
@@ -35,13 +36,34 @@ function normalise(geo: THREE.BufferGeometry, matrix: THREE.Matrix4, colour = fa
   return g;
 }
 
-function keyOf(m: THREE.Mesh): string | null {
+function keyOf(m: THREE.Mesh, fold = false): string | null {
   if ((m as THREE.InstancedMesh).isInstancedMesh || (m as THREE.SkinnedMesh).isSkinnedMesh || m.userData.keep || !m.visible) return null;
   if (Array.isArray(m.material)) return null;
-  return `${m.material.uuid}|${m.castShadow}|${m.receiveShadow}|${m.renderOrder}`;
+  const tail = `${m.castShadow}|${m.receiveShadow}|${m.renderOrder}`;
+  const sig = fold ? foldable(m.material) : null;
+  if (sig !== null) {
+    const s = m.material as THREE.MeshStandardMaterial;
+    const maps = MAPS.map((k) => (s as unknown as Record<string, THREE.Texture | null>)[k]?.uuid ?? '').join(',');
+    return `fold|${s.roughness.toFixed(2)}|${s.metalness.toFixed(2)}|${s.side}|${s.flatShading}|${s.emissive.getHexString()}|${s.emissiveIntensity.toFixed(2)}|${s.envMapIntensity.toFixed(2)}|${maps}|${sig}|${tail}`;
+  }
+  return `${m.material.uuid}|${tail}`;
 }
 
-function buildMerged(list: { mesh: THREE.Mesh; matrix: THREE.Matrix4 }[]): THREE.Mesh {
+const MAPS = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap', 'alphaMap', 'bumpMap', 'displacementMap', 'lightMap', 'envMap'] as const;
+
+/**
+ * An opaque standard material differs from another with the same settings, textures and shader
+ * features only by its colour, which can go into the vertices instead: such meshes merge into one
+ * draw even though their materials differ. Returns the feature signature, or null if not foldable.
+ */
+function foldable(mat: THREE.Material): string | null {
+  const s = mat as THREE.MeshStandardMaterial;
+  if (s.type !== 'MeshStandardMaterial' || s.transparent || s.opacity < 1 || s.alphaTest > 0 || s.alphaHash) return null;
+  return featureSignature(s);
+}
+
+function buildMerged(list: { mesh: THREE.Mesh; matrix: THREE.Matrix4 }[], folded = false): THREE.Mesh {
+  if (folded) return buildFolded(list);
   const colour = !!(list[0].mesh.material as THREE.Material & { vertexColors?: boolean }).vertexColors;
   const geo = mergeGeometries(list.map((e) => normalise(e.mesh.geometry, e.matrix, colour)))!;
   geo.computeBoundingSphere();
@@ -51,6 +73,35 @@ function buildMerged(list: { mesh: THREE.Mesh; matrix: THREE.Matrix4 }[]): THREE
   merged.receiveShadow = first.receiveShadow;
   merged.renderOrder = first.renderOrder;
   Object.assign(merged.userData, first.userData);
+  return merged;
+}
+
+/** Plain materials of different colours, merged: each part's colour baked into its vertices. */
+function buildFolded(list: { mesh: THREE.Mesh; matrix: THREE.Matrix4 }[]): THREE.Mesh {
+  const parts = list.map((e) => {
+    const mat = e.mesh.material as THREE.MeshStandardMaterial;
+    const g = normalise(e.mesh.geometry, e.matrix, true);
+    const c = g.attributes.color.array as Float32Array;
+    // (Without vertexColors the part's own vertex colours never showed: white, then the material's.)
+    if (!mat.vertexColors) c.fill(1);
+    for (let i = 0; i < c.length; i += 3) {
+      c[i] *= mat.color.r;
+      c[i + 1] *= mat.color.g;
+      c[i + 2] *= mat.color.b;
+    }
+    return g;
+  });
+  const geo = mergeGeometries(parts)!;
+  geo.computeBoundingSphere();
+  const first = list[0].mesh;
+  const mat = carryFeatures(first.material as THREE.Material, (first.material as THREE.MeshStandardMaterial).clone());
+  mat.color.setRGB(1, 1, 1);
+  mat.vertexColors = true;
+  const merged = new THREE.Mesh(geo, mat);
+  merged.castShadow = first.castShadow;
+  merged.receiveShadow = first.receiveShadow;
+  merged.renderOrder = first.renderOrder;
+  merged.userData.foldedMaterial = true;
   return merged;
 }
 
@@ -83,9 +134,13 @@ export function mergeSiblings(root: THREE.Object3D): void {
 
 /**
  * Flatten a fully static group: every mergeable mesh underneath is baked into the group's space
- * and merged by material. Kept meshes (and their ancestors) stay in place.
+ * and merged by material. Kept meshes (and their ancestors) stay in place. With `foldColours`,
+ * plain untextured materials that differ only in colour merge too (the colour goes into the
+ * vertices): for a stand-in seen from afar, hundreds of painted pieces become a handful of draws.
+ * The merged material is new; free it with the geometry.
  */
-export function flattenStatic(group: THREE.Object3D): void {
+export function flattenStatic(group: THREE.Object3D, opts: { foldColours?: boolean } = {}): void {
+  const fold = !!opts.foldColours;
   group.updateMatrixWorld(true);
   const inv = group.matrixWorld.clone().invert();
   const buckets = new Map<string, { mesh: THREE.Mesh; matrix: THREE.Matrix4 }[]>();
@@ -95,7 +150,7 @@ export function flattenStatic(group: THREE.Object3D): void {
     if (!m.isMesh || m === group) return;
     // Anything under a kept node stays as authored.
     for (let p: THREE.Object3D | null = m; p && p !== group; p = p.parent) if (p.userData.keep || !p.visible) return;
-    const k = keyOf(m);
+    const k = keyOf(m, fold);
     if (!k) return;
     const list = buckets.get(k) ?? [];
     list.push({ mesh: m, matrix: inv.clone().multiply(m.matrixWorld) });
@@ -103,7 +158,7 @@ export function flattenStatic(group: THREE.Object3D): void {
     taken.push(m);
   });
   for (const m of taken) m.parent?.remove(m);
-  for (const list of buckets.values()) group.add(buildMerged(list));
+  for (const [k, list] of buckets) group.add(buildMerged(list, k.startsWith('fold|')));
   // Drop groups left empty by the flattening.
   const empty: THREE.Object3D[] = [];
   group.traverse((o) => {

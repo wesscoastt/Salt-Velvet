@@ -140,6 +140,7 @@ Kynds Engine (docs/ENGINE_PLAN.md, M5): material features. A feature is one look
 | `featuresOf` | function | The features a material carries, in order. |
 | `carryFeatures` | function | Give a copy of a material the same features (its GLSL patch, cache key and node settings). |
 | `addFeature` | function | Give a material a feature. |
+| `featureSignature` | function | What a material's shader patches are, as a string: two materials with the same signature draw alike but for their own colours (merge.ts folds such materials together). |
 | `nodeReady` | function | Can this material be drawn by the node renderer (every feature it carries is ported)? |
 | `instanceColumn` | function | Column `k` of the instance's matrix (`instanceMatrix[k].xyz` in GLSL; the identity's for a plain mesh): 0–2 the scaled axes, 3 the offset. |
 | `instanceOffset` | function | The instance's offset in its mesh's own frame (zero for a plain mesh): GLSL's `instanceMatrix[3].xyz`. |

@@ -109,6 +109,29 @@ export function addFeature<P>(material: THREE.Material, id: string, params: P): 
   return material;
 }
 
+/**
+ * What a material's shader patches are, as a string: two materials with the same signature draw
+ * alike but for their own colours (merge.ts folds such materials together). Null for a material
+ * patched outside the feature system, or with parameters that can't be compared (a function).
+ */
+export function featureSignature(material: THREE.Material): string | null {
+  const uses = USES.get(material);
+  if (!uses) return material.onBeforeCompile === THREE.Material.prototype.onBeforeCompile ? '' : null;
+  const plain = (v: unknown, depth = 0): unknown => {
+    if (v === null || typeof v === 'number' || typeof v === 'string' || typeof v === 'boolean' || v === undefined) return v;
+    if (typeof v === 'function' || depth > 4) throw new Error('unsigned');
+    const o = v as Record<string, unknown>;
+    if (typeof o.uuid === 'string') return `#${o.uuid}`;
+    if (Array.isArray(v)) return v.map((x) => plain(x, depth + 1));
+    return Object.fromEntries(Object.keys(o).sort().map((k) => [k, plain(o[k], depth + 1)]));
+  };
+  try {
+    return uses.map((u) => `${u.id}:${JSON.stringify(plain(u.params))}`).join(';');
+  } catch {
+    return null;
+  }
+}
+
 /** Can this material be drawn by the node renderer (every feature it carries is ported)? */
 export function nodeReady(material: THREE.Material): boolean {
   return featuresOf(material).every((u) => ported(featureById(u.id)));
