@@ -49,6 +49,13 @@ function hairFor(sex: Sex, rng: Rng): HairStyle {
 }
 
 /** A second generator seeded from the world's current state; reading the state doesn't advance it. */
+/** A share in [0, 1) fixed by a Kynd's id: chance-free looks that never disturb the world's dice. */
+export function idShare(id: string): number {
+  let h = 2166136261;
+  for (const ch of id) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+  return (h >>> 0) / 4294967296;
+}
+
 function sideRng(rng: Rng, salt: number): Rng {
   return new Rng((Math.imul(rng.state ^ 0x9e3779b9, 0x85ebca6b) + salt * 0x27d4eb2f) >>> 0);
 }
