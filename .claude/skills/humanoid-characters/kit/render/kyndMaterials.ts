@@ -566,25 +566,27 @@ function skinNodes(u: SkinUniforms, T: TSL): Record<string, TNode> {
 /**
  * Skin's own diffuse falloff: sunlight wraps a little past the terminator (as light scattered
  * through skin does), warming as it goes, so a high sun doesn't cut a hard line across the face at
- * the cheekbones and leave the lower face in brown shade (a skull, in the user's words). Specular
- * keeps the true N·L. (WebGL only: the WebGPU path keeps three's own falloff for now.)
+ * the cheekbones and leave the lower face in brown shade (a skull, in the user's words). Only the
+ * diffuse gains the wrapped light; specular keeps the true N·L. The same extra term on both paths:
+ * GLSL patches three's direct-light function, TSL wraps the lighting model's `direct`.
  */
 const SKIN_WRAP = 0.5;
+const SKIN_WRAP_TINT = [1.0, 0.7, 0.58] as const;
 function skinLightsChunk(): string {
   const chunk = THREE.ShaderChunk.lights_physical_pars_fragment;
-  const from = 'vec3 irradiance = dotNL * directLight.color;';
+  const from = 'reflectedLight.directDiffuse += irradiance * BRDF_Lambert( material.diffuseColor );';
   if (!chunk.includes(from)) return chunk;
   return chunk.replace(
     from,
-    `float kD = dot( geometryNormal, directLight.direction );
-	float kWrap = saturate( ( kD + ${SKIN_WRAP.toFixed(2)} ) / ${(1 + SKIN_WRAP).toFixed(2)} );
-	vec3 irradiance = directLight.color * ( vec3( dotNL ) + max( kWrap - dotNL, 0.0 ) * vec3( 1.0, 0.7, 0.58 ) );`,
+    `float kWrap = saturate( ( dot( geometryNormal, directLight.direction ) + ${SKIN_WRAP.toFixed(2)} ) / ${(1 + SKIN_WRAP).toFixed(2)} );
+	vec3 kScatter = directLight.color * max( kWrap - dotNL, 0.0 ) * vec3( ${SKIN_WRAP_TINT.map((v) => v.toFixed(2)).join(', ')} );
+	reflectedLight.directDiffuse += ( irradiance + kScatter ) * BRDF_Lambert( material.diffuseColor );`,
   );
 }
 
 export const SKIN = defineFeature<SkinUniforms>({
   id: 'skin',
-  key: () => 'kynd-skin3',
+  key: () => 'kynd-skin4',
   glsl(shader, u) {
     Object.assign(shader.uniforms, u, { tFace: { value: faceTexture() } });
     shader.fragmentShader = shader.fragmentShader.replace('#include <lights_physical_pars_fragment>', skinLightsChunk());
@@ -658,6 +660,23 @@ export const SKIN = defineFeature<SkinUniforms>({
     const n = skinNodes(u, T);
     m.roughnessNode = T.mix(T.materialRoughness, 0.42, n.fT.g.mul(0.85)).add(T.float(1).sub(n.fT.r).mul(0.5)).add(n.pore.sub(0.5).mul(0.08));
     m.emissiveNode = T.diffuseColor.rgb.mul(T.vec3(0.1, 0.045, 0.03));
+    // Skin's wrapped falloff (SKIN_WRAP): three's direct light as ever, plus the scattered light past
+    // the terminator, on the diffuse only.
+    type Direct = { lightDirection: TNode; lightColor: TNode; reflectedLight: { directDiffuse: TNode } };
+    const node = m as unknown as { setupLightingModel: (...a: unknown[]) => { direct: (d: Direct, ...r: unknown[]) => void } };
+    const make = node.setupLightingModel.bind(m);
+    node.setupLightingModel = (...a: unknown[]) => {
+      const model = make(...a);
+      const direct = model.direct.bind(model);
+      model.direct = (d: Direct, ...r: unknown[]) => {
+        direct(d, ...r);
+        const nl = T.transformedNormalView.dot(d.lightDirection);
+        const wrap = nl.add(SKIN_WRAP).div(1 + SKIN_WRAP).clamp();
+        const scatter = d.lightColor.mul(T.max(wrap.sub(nl.clamp()), 0)).mul(T.vec3(...SKIN_WRAP_TINT));
+        d.reflectedLight.directDiffuse.addAssign(scatter.mul(T.diffuseColor.rgb).mul(1 / Math.PI));
+      };
+      return model;
+    };
   },
 });
 
