@@ -721,9 +721,10 @@ export function buildHead(B: BodyBuckets, head: Head, C: Palette, look: FullAppe
     const y = p.y - HEAD_Y;
     if (p.z <= 0) return { c: C.skin, c2: lipC };
     let k = 0;
-    // Cheeks: a broad soft warmth with a rosier heart over the cheekbone.
-    k += blush * 0.42 * g2(ax - 0.041, y - (f.eyeY - 0.04), 0.017, 0.015);
-    k += blush * 0.22 * g2(ax - 0.044, y - (f.eyeY - 0.036), 0.03, 0.026);
+    // Cheeks: a broad soft warmth with a rosier heart over the cheekbone. (Diffuse: a tight, strong
+    // heart read as painted rouge circles.)
+    k += blush * 0.22 * g2(ax - 0.041, y - (f.eyeY - 0.04), 0.021, 0.018);
+    k += blush * 0.26 * g2(ax - 0.044, y - (f.eyeY - 0.036), 0.034, 0.029);
     k += (0.16 + blush * 0.12) * g2(x, y - f.noseTipY, 0.012, 0.009);
     k += 0.1 * g2(x, y - f.chinY, 0.016, 0.012);
     k += 0.06 * g2(x, y - (f.eyeY + 0.045), 0.04, 0.02);

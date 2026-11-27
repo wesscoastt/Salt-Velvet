@@ -563,11 +563,31 @@ function skinNodes(u: SkinUniforms, T: TSL): Record<string, TNode> {
  * texture's masks, warm shading, age lines, stubble, freckles and a scar; glossier lips, pore grain,
  * light scattered warm through the shadows, a ruddier rim.
  */
+/**
+ * Skin's own diffuse falloff: sunlight wraps a little past the terminator (as light scattered
+ * through skin does), warming as it goes, so a high sun doesn't cut a hard line across the face at
+ * the cheekbones and leave the lower face in brown shade (a skull, in the user's words). Specular
+ * keeps the true N·L. (WebGL only: the WebGPU path keeps three's own falloff for now.)
+ */
+const SKIN_WRAP = 0.5;
+function skinLightsChunk(): string {
+  const chunk = THREE.ShaderChunk.lights_physical_pars_fragment;
+  const from = 'vec3 irradiance = dotNL * directLight.color;';
+  if (!chunk.includes(from)) return chunk;
+  return chunk.replace(
+    from,
+    `float kD = dot( geometryNormal, directLight.direction );
+	float kWrap = saturate( ( kD + ${SKIN_WRAP.toFixed(2)} ) / ${(1 + SKIN_WRAP).toFixed(2)} );
+	vec3 irradiance = directLight.color * ( vec3( dotNL ) + max( kWrap - dotNL, 0.0 ) * vec3( 1.0, 0.7, 0.58 ) );`,
+  );
+}
+
 export const SKIN = defineFeature<SkinUniforms>({
   id: 'skin',
-  key: () => 'kynd-skin2',
+  key: () => 'kynd-skin3',
   glsl(shader, u) {
     Object.assign(shader.uniforms, u, { tFace: { value: faceTexture() } });
+    shader.fragmentShader = shader.fragmentShader.replace('#include <lights_physical_pars_fragment>', skinLightsChunk());
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>
         attribute vec3 aCol2;
