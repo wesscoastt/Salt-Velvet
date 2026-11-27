@@ -29437,6 +29437,58 @@ var Landmarks = {
         g.computeVertexNormals();
         return g;
     },
+    _townPoles: function () {
+        if (typeof Roads === 'undefined' || !Roads.SEGMENTS) { return; }
+        var self = this, rnd = this._rng(7031), cells = {}, CELL = 200, n = 0, si, k;
+        var pole = 0x4e4032, arm = 0x5a4a38, wire = 0x1c1c1e, glass = 0x5e8a7a, can = 0x6a6e6a;
+        var cell = function (x, z) {
+            var key = Math.floor(x / CELL) + ',' + Math.floor(z / CELL);
+            if (!cells[key]) { var g = new THREE.Group(); cells[key] = { g: g, K: City._kit(g), S: [] }; }
+            return cells[key];
+        };
+        var ok = function (x, z) {
+            return !World.pointBlocked(x, z, 0.45, 1.5) && !World.pointBlocked(x, z, 0.3, 7) && !Roads.onRoad(x, z) &&
+                   !(typeof Routes !== 'undefined' && Routes.onRoad && Routes.onRoad(x, z)) &&
+                   !(typeof Water !== 'undefined' && Water.isWater && Water.isWater(x, z));
+        };
+        for (si = 0; si < Roads.SEGMENTS.length; si++) {
+            var sg = Roads.SEGMENTS[si];
+            if (sg[4] !== 'street') { continue; }
+            if (sg[5] === 'STRAND STREET') { continue; }                       /* has its poles */
+            var cls = Roads.CLASS.street, x1 = sg[0], z1 = sg[1], x2 = sg[2], z2 = sg[3];
+            var L = Math.hypot(x2 - x1, z2 - z1); if (L < 40) { continue; }
+            var dx = (x2 - x1) / L, dz = (z2 - z1) / L, side = (si % 2) ? 1 : -1, off = cls.w / 2 + 0.55;
+            var px0 = -dz * side, pz0 = dx * side;                             /* toward the chosen kerb */
+            var prev = null, t;
+            for (t = 14; t < L - 14; t += 38 + rnd() * 6) {
+                var x = x1 + dx * t + px0 * off, z = z1 + dz * t + pz0 * off;
+                if (!ok(x, z)) { prev = null; continue; }
+                var C1 = cell(x, z), K = C1.K, ins = [], j;
+                K.cyl(0.12, 0.16, 9.4, x, 4.7, z, pole, 0, 0, 6);
+                K.box(2.3, 0.13, 0.13, x, 8.6, z, arm, 0, Math.atan2(dx, dz), 0);
+                for (j = -1; j <= 1; j++) {
+                    var ix = x + px0 * j * 0.95, iz = z + pz0 * j * 0.95;
+                    K.cyl(0.05, 0.06, 0.16, ix, 8.76, iz, glass, 0, 0, 6);
+                    ins.push([ix, 8.84, iz]);
+                }
+                if (n % 4 === 1) { K.cyl(0.3, 0.3, 0.8, x - px0 * 0.35, 7.4, z - pz0 * 0.35, can, 0, 0, 10); K.cyl(0.32, 0.32, 0.06, x - px0 * 0.35, 7.82, z - pz0 * 0.35, 0x4a4e4a, 0, 0, 10); }
+                if (prev && Math.hypot(prev.x - x, prev.z - z) < 52) {
+                    for (j = 0; j < 3; j++) {
+                        var A = prev.ins[j], Bp = ins[j], seg, la = A;
+                        for (seg = 1; seg <= 4; seg++) {
+                            var sx = seg / 4, nb = [A[0] + (Bp[0] - A[0]) * sx, A[1] + (Bp[1] - A[1]) * sx - Math.sin(sx * Math.PI) * 0.6, A[2] + (Bp[2] - A[2]) * sx];
+                            self._wire(K, la, nb, 0.016, wire);
+                            la = nb;
+                        }
+                    }
+                }
+                C1.S.push([x - 0.2, x + 0.2, z - 0.2, z + 0.2, 9.4]);
+                prev = { x: x, z: z, ins: ins }; n++;
+            }
+        }
+        for (k in cells) { if (cells.hasOwnProperty(k)) { self._weld(cells[k].g, cells[k].S, true); } }
+        this.townPoleCount = n;
+    },
     /* the blank roof boards on named landmarks, lettered (both faces: they are seen from both) */
     _boardSigns: function () {
         var self = this, both = function (lines, o, axis) {
@@ -29610,6 +29662,7 @@ var Landmarks = {
         for (k in cells) { if (cells.hasOwnProperty(k)) { this._weld(cells[k].g, cells[k].S, true); } }
         this.awningCount = aw; this.roofCount = rf;
         this._contactShade();
+        this._townPoles();
     },
     /* an olive-drab Army truck (deuce-and-a-half) or a jeep, nose along yaw */
     _armyTruck: function (K, x, z, yaw, jeep) {
