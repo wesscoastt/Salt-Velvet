@@ -36,6 +36,10 @@ export const KIND = {
   charge: 7,
   /** Riveted mail: interlocking steel rings (kyndMaterials draws them). */
   mail: 8,
+  /** Parti-coloured (mi-parti) wool: the colour on the Kynd's right, the second colour on the left. */
+  parti: 9,
+  /** Rayed (striped) wool: bands of the colour and the second colour round the body. */
+  striped: 10,
 } as const;
 
 export class Bucket {

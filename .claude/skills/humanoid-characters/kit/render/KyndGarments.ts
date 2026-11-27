@@ -954,6 +954,49 @@ export function buildBareBody(d: Dress): void {
   }
 }
 
+/**
+ * The cloth's pattern (Kynd Creator ▸ Clothing): the main-colour wool and linen of the outfit becomes
+ * parti-coloured (split down the middle with the accent colour, the hose counterchanged) or rayed
+ * (striped with the accent colour). The garment shader draws the pattern (cloth kinds `parti` and
+ * `striped`), so its edges stay crisp however coarse the mesh. Trim, linings and leather keep theirs.
+ */
+export function applyClothPattern(b: { col: number[]; col2: number[]; kind: number[]; readonly vertexCount: number }, C: { tunic: THREE.Color; legs: THREE.Color; accent: THREE.Color }, pattern: string): number {
+  if (pattern !== 'parti' && pattern !== 'striped') return 0;
+  // The colour itself, or a shade of it within a fifth either way (skirts carry a little baked
+  // shading); linings (a darker shade) and other colours are left alone.
+  const is = (i: number, c: THREE.Color) => {
+    const r = b.col[i * 3], g = b.col[i * 3 + 1], bl = b.col[i * 3 + 2];
+    const tt = c.r * c.r + c.g * c.g + c.b * c.b;
+    if (tt < 1e-8) return r + g + bl < 1e-4;
+    const s = (r * c.r + g * c.g + bl * c.b) / tt;
+    if (s < 0.8 || s > 1.2) return false;
+    const tol = 0.05 * Math.max(c.r, c.g, c.b) + 0.0015;
+    return Math.abs(r - s * c.r) < tol && Math.abs(g - s * c.g) < tol && Math.abs(bl - s * c.b) < tol;
+  };
+  const set = (arr: number[], i: number, c: THREE.Color) => { arr[i * 3] = c.r; arr[i * 3 + 1] = c.g; arr[i * 3 + 2] = c.b; };
+  const kind = pattern === 'parti' ? KIND.parti : KIND.striped;
+  let n = 0;
+  for (let i = 0; i < b.vertexCount; i++) {
+    const k = b.kind[i];
+    if (k !== KIND.wool && k !== KIND.linen && k !== KIND.velvet) continue;
+    if (is(i, C.tunic)) {
+      const s = (b.col[i * 3] + b.col[i * 3 + 1] + b.col[i * 3 + 2]) / Math.max(1e-6, C.tunic.r + C.tunic.g + C.tunic.b);
+      b.kind[i] = kind;
+      set(b.col2, i, C.accent.clone().multiplyScalar(s));
+      n++;
+    } else if (pattern === 'parti' && is(i, C.legs) && !C.legs.equals(C.accent)) {
+      // The hose counterchanged: the accent on the right leg, their own colour on the left.
+      const own = new THREE.Color(b.col[i * 3], b.col[i * 3 + 1], b.col[i * 3 + 2]);
+      const s = (own.r + own.g + own.b) / Math.max(1e-6, C.legs.r + C.legs.g + C.legs.b);
+      b.kind[i] = kind;
+      set(b.col, i, C.accent.clone().multiplyScalar(s));
+      set(b.col2, i, own);
+      n++;
+    }
+  }
+  return n;
+}
+
 export function buildOutfit(d: Dress): void {
   const { look, C, m } = d;
   const outfit = look.outfit;

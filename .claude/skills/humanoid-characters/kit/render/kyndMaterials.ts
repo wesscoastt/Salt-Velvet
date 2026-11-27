@@ -335,7 +335,13 @@ function garmentNodes(p: GarmentParams, T: TSL): Record<string, TNode> {
   const str = pick([[1, T.float(0.22)], [2, T.float(0.18)], [3, T.float(0.34)], [4, T.float(0.75)], [5, T.float(0.8)], [6, T.float(0.3)], [7, T.mix(0.18, 0.3, ch)], [8, T.float(0)]], T.float(0.24));
   const rough = pick([[1, T.float(0.88)], [2, T.float(0.78)], [3, T.float(0.64)], [4, T.float(1)], [5, T.float(0.85)], [6, T.mix(0.8, 0.45, pattern.r)], [7, T.mix(0.78, 0.55, ch)], [8, T.mix(0.62, 0.32, mail)]], T.float(0.92));
   const sheen = pick([[2, T.float(1)], [4, T.float(-1)], [7, T.float(1).sub(ch)]], T.float(0));
-  const tint = pick([[4, pattern.b], [6, pattern.r], [7, ch]], T.float(0));
+  const pw = T.fwidth(rest.x).add(0.0004);
+  const parti = T.float(1).sub(T.smoothstep(pw.negate(), pw, rest.x));
+  const sy = rest.y.mul(14);
+  const sf = T.abs(T.fract(sy).sub(0.5));
+  const sw = T.fwidth(sy).add(0.01);
+  const rayed = T.float(1).sub(T.smoothstep(T.float(0.25).sub(sw), T.float(0.25).add(sw), sf));
+  const tint = pick([[4, pattern.b], [6, pattern.r], [7, ch], [9, parti], [10, rayed]], T.float(0));
   const cloth = T.select(k.equal(3).or(k.equal(4)).or(k.equal(5)).or(k.equal(8)), T.float(0), T.float(1));
   const around = T.vec2(T.atan2(rest.x, rest.z).mul(3.2), rest.y.mul(2.2));
   const fold = noise(around).mul(0.7).add(noise(around.mul(2.3).add(5.1)).mul(0.3));
@@ -351,7 +357,7 @@ function garmentNodes(p: GarmentParams, T: TSL): Record<string, TNode> {
 
 /**
  * Kynd clothing (engine M5 material feature `garment`): per-vertex cloth kinds (wool, linen, silk,
- * leather, fur, straw, embroidery, check, mail) with woven detail at the rest pose, drape folds,
+ * leather, fur, straw, embroidery, check, mail, parti-coloured, rayed) with woven detail at the rest pose, drape folds,
  * uneven dye, a grubby hem, and each kind's own bump and sheen.
  */
 export const GARMENT = defineFeature<GarmentParams>({
@@ -423,6 +429,18 @@ export const GARMENT = defineFeature<GarmentParams>({
           float ch = texture2D(tPattern, vUv0).g;
           diffuseColor.rgb = mix(diffuseColor.rgb, vCol2, ch);
           gDet = gD.r; gStr = mix(0.18, 0.3, ch); gRough = mix(0.78, 0.55, ch); gSheen = 1.0 - ch;
+        }
+        // Parti-coloured cloth: split down the middle at the rest pose (a clean seam, never smeared).
+        else if (gK == 9.0) {
+          float w = fwidth(vRestPos.x) + 0.0004;
+          diffuseColor.rgb = mix(diffuseColor.rgb, vCol2, 1.0 - smoothstep(-w, w, vRestPos.x));
+        }
+        // Rayed cloth: even bands round the body, about 7 cm from one to the next.
+        else if (gK == 10.0) {
+          float sy = vRestPos.y * 14.0;
+          float f = abs(fract(sy) - 0.5);
+          float w = fwidth(sy) + 0.01;
+          diffuseColor.rgb = mix(diffuseColor.rgb, vCol2, 1.0 - smoothstep(0.25 - w, 0.25 + w, f));
         }
         // Mail: rows of interlocking rings, each row half a ring over from the last, seen on the
         // two planes the surface faces most. Up close the rings and the dark gaps between them;

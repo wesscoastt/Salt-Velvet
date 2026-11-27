@@ -40,6 +40,7 @@ draw calls a head. The code lives in Kynds: Medieval (`src/render/kynd*.ts`, `Ky
 | Appearance vocabulary, defaults (`normalizeAppearance`), face fields, `DETAIL_FIELDS` | `sim/entities/appearance.ts` |
 | Inheritance, random looks | `sim/family/genetics.ts` |
 | Grey hair by stage and `greying`, a beard's own `beardColour` (`stageLook`; beard tones `beardTones`) | `render/KyndAvatar.ts`, `render/kyndBody.ts` |
+| Cloth patterns (`clothPattern`: parti-coloured, rayed): `applyClothPattern` marks the main cloth's vertices, the garment shader draws them (cloth kinds 9, 10) | `render/KyndGarments.ts`, `render/kyndMaterials.ts` |
 | Skeleton `BONES`, `measure`, skull `skull()` + `mandible()`, head mesh, neck (`neckRadius`), hair, beard, mouth interior (`buildMouth`), hands, legs | `render/kyndBody.ts` |
 | Face surface: lids, nose, lips, relief, `faceLayout`, `headShape`, face rows | `render/kyndFace.ts` |
 | Painted face detail (lips, brows, stubble, age lines) | `render/kyndFaceTexture.ts` |

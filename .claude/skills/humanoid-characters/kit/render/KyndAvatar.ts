@@ -13,7 +13,7 @@ import { normalizeAppearance, outfitAt, type FullAppearance } from '../sim/entit
 import { atDetail, Bucket, capsuleR, col, ellipsoid, grid, KIND, mixCol, Path, range, around, shade, tube } from './kyndGeometry.ts';
 import { kyndMaterials, skinMaterial, type FaceDetail } from './kyndMaterials.ts';
 import { ANKLE_Y, BI, BONES, EL_Y, HIP_Y, KNEE_Y, PELVIS_Y, SH_Y, SPINE_Y, LID_LEVELS, WRIST_Y, boneLayout, buildBareFeet, buildBeard, buildHair, buildHands, buildHead, FrontProbe, HEAD_Y, Head, hairCrown, measure, palette, type BodyBuckets, type FaceLayout, type Measure, type Palette } from './kyndBody.ts';
-import { buildBareBody, buildHeadwear, buildOutfit, hairCoverFor } from './KyndGarments.ts';
+import { applyClothPattern, buildBareBody, buildHeadwear, buildOutfit, hairCoverFor } from './KyndGarments.ts';
 import { buildLance } from './LanceMesh.ts';
 
 /** Overall size by life stage (on top of the Kynd's own height). */
@@ -1231,6 +1231,7 @@ export function buildBodyBuckets(L: FullAppearance, stage: LifeStage): { B: Body
   const fine = noble || L.outfit === 'doublet' || L.outfit === 'cotehardie' || (child && ['doublet', 'cotehardie', 'riding_coat'].includes(kept));
   const dress = { B, m, C, look: L, head, crown: hairCrown(L.hairStyle), noble, fine };
   buildOutfit(dress);
+  applyClothPattern(B.garment, C, L.clothPattern);
   buildBareBody(dress);
   // The front of the body as dressed, below the jaw: what hair falling forward must lie over.
   const under = new FrontProbe([B.garment, B.skin, B.bare], HEAD_Y - 0.09);

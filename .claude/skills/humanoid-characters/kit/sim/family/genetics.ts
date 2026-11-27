@@ -218,6 +218,11 @@ export function randomAppearance(rng: Rng, sex: Sex, tier = 2): KyndAppearance {
   // Some beards come in redder than the hair (their own stream, so no other looks change).
   const br = sideRng(rng, 71);
   if (beardStyle !== 'none' && beardStyle !== 'stubble' && br.next() < 0.25) look.beardColour = mixColor(look.hair, '#a8552b', br.range(0.3, 0.6));
+  // A few strangers dress more gaily: parti-coloured or rayed cloth (its own stream too).
+  const pr = sideRng(rng, 73);
+  const gay = pr.next();
+  if (gay < 0.06) look.clothPattern = 'parti';
+  else if (gay < 0.1) look.clothPattern = 'striped';
   if (noble && look.tunic && !RICH.includes(look.tunic)) look.tunic = r.pick(CLOTH_COLOURS.slice(8));
   return look;
 }

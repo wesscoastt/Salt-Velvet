@@ -101,4 +101,6 @@ export interface KyndAppearance {
   greying?: number;
   /** A beard of its own colour (often redder than the hair); null or absent = the hair's colour. */
   beardColour?: string | null;
+  /** The cloth's pattern: plain, parti-coloured (split with the accent colour) or rayed (striped). */
+  clothPattern?: ClothPattern;
 }

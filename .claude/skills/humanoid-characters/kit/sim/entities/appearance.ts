@@ -122,6 +122,14 @@ export const HEADWEAR: { id: Headwear; label: string; minTier: number }[] = [
 // (Appended to: an index into this list is never stored, but keep the old tones where they were.)
 export const SKIN_TONES = ['#f4d2b8', '#f0c7a4', '#e8b996', '#e0a882', '#d9a07a', '#c98e68', '#c48a64', '#b07550', '#9a6a4a', '#8a5a3c', '#6e452c', '#5a3824', '#d4a27c', '#b8865a', '#7a4e34', '#46291a'];
 export const HAIR_COLOURS = ['#1f1a17', '#2a1a14', '#4a2c1a', '#6b3a1e', '#8a6a3a', '#a8552b', '#c46a2e', '#d8b25a', '#e6cf8a', '#5a5048', '#8a7a6a', '#cfcac2'];
+/** How an outfit's main cloth is woven or sewn: plain, parti-coloured (two halves) or rayed (striped). */
+export type ClothPattern = 'plain' | 'parti' | 'striped';
+export const CLOTH_PATTERNS: { id: ClothPattern; label: string }[] = [
+  { id: 'plain', label: 'Plain' },
+  { id: 'parti', label: 'Parti-coloured' },
+  { id: 'striped', label: 'Rayed (striped)' },
+];
+
 /** Beard colours offered beside the hair's own: auburn, ginger, sandy, brown and dark. */
 export const BEARD_COLOURS = ['#7a3a1c', '#a8552b', '#c46a2e', '#b89058', '#6b4a2a', '#3a261a'];
 export const EYE_COLOURS = ['#3a2a1e', '#5a3a1e', '#6b4a2a', '#4a6a8a', '#5a7a5a', '#7a8a9a', '#2a221c'];
@@ -207,6 +215,7 @@ export function normalizeAppearance(a: KyndAppearance): FullAppearance {
     scar: a.scar ?? false,
     greying: Number.isFinite(a.greying) ? Math.max(0, Math.min(1, a.greying!)) : 0,
     beardColour: a.beardColour ?? null,
+    clothPattern: a.clothPattern ?? 'plain',
   };
 }
 
