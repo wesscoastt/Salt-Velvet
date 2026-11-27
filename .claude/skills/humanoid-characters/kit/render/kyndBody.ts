@@ -1438,6 +1438,69 @@ export function buildHair(B: BodyBuckets, head: Head, C: Palette, look: FullAppe
     return [BI.head, 1 - s, bone, s];
   };
 
+  // What the hair falls over (built before it): how far out the clothes, armour and bare arms reach
+  // all round the body below the neck, by direction (3° bins) and height (1 cm bins), widened a
+  // little (±6°, ±1 cm) so the hair doesn't ripple over every lace and button, then hung like a
+  // curtain: at each height the widest point at or above it, since a lock that has passed over the
+  // shoulder blades, a pauldron or a cloak's drape falls straight on from there, never back under.
+  const ANG = 120, ROWS = 52, ROW = 0.01;
+  // (Built on first use: only loose hair falling over the clothes needs it.)
+  let clearance: Float32Array | null | undefined;
+  const buildClearance = (): Float32Array | null => {
+    const raw = new Float32Array(ANG * ROWS);
+    let any = false;
+    const mark = (x: number, y: number, z: number) => {
+      const row = Math.floor((-0.02 - y) / ROW);
+      if (row < 0 || row >= ROWS) return;
+      const a = ((Math.round((Math.atan2(x, z) / (Math.PI * 2)) * ANG) % ANG) + ANG) % ANG;
+      const r = Math.hypot(x, z);
+      if (r > raw[row * ANG + a]) raw[row * ANG + a] = r;
+      any = true;
+    };
+    // Over the triangles' faces, not just their corners: a cloak's vertices lie many centimetres
+    // apart, and its surface between them is what the hair must clear.
+    const top = HEAD_Y - 0.02, bottom = HEAD_Y - 0.02 - ROWS * ROW;
+    for (const b of [B.garment, B.metal, B.bare]) {
+      if (!b) continue;
+      const P = b.pos, I = b.idx;
+      for (let t = 0; t + 2 < I.length; t += 3) {
+        const i0 = I[t] * 3, i1 = I[t + 1] * 3, i2 = I[t + 2] * 3;
+        if (Math.max(P[i0 + 1], P[i1 + 1], P[i2 + 1]) < bottom || Math.min(P[i0 + 1], P[i1 + 1], P[i2 + 1]) > top) continue;
+        const e = Math.max(Math.hypot(P[i1] - P[i0], P[i1 + 1] - P[i0 + 1], P[i1 + 2] - P[i0 + 2]), Math.hypot(P[i2] - P[i0], P[i2 + 1] - P[i0 + 1], P[i2 + 2] - P[i0 + 2]), Math.hypot(P[i2] - P[i1], P[i2 + 1] - P[i1 + 1], P[i2 + 2] - P[i1 + 2]));
+        const n = Math.min(30, Math.max(1, Math.ceil(e / 0.012)));
+        for (let p = 0; p <= n; p++) for (let q = 0; q <= n - p; q++) {
+          const u = p / n, v = q / n, w = 1 - u - v;
+          mark(P[i0] * w + P[i1] * u + P[i2] * v, P[i0 + 1] * w + P[i1 + 1] * u + P[i2 + 1] * v - HEAD_Y, P[i0 + 2] * w + P[i1 + 2] * u + P[i2 + 2] * v);
+        }
+      }
+    }
+    if (!any) return null;
+    {
+      const clearance = new Float32Array(ANG * ROWS);
+      for (let a = 0; a < ANG; a++) {
+        let hang = 0;
+        for (let row = 0; row < ROWS; row++) {
+          let w = 0;
+          for (let da = -2; da <= 2; da++) for (let dr = -1; dr <= 1; dr++) {
+            const rr = row + dr;
+            if (rr >= 0 && rr < ROWS) w = Math.max(w, raw[rr * ANG + (((a + da) % ANG) + ANG) % ANG]);
+          }
+          hang = Math.max(hang, w);
+          clearance[row * ANG + a] = hang;
+        }
+      }
+      return clearance;
+    }
+  };
+  /** How far out the hair must lie at this direction and height to clear what it falls over (0: unknown). */
+  const clearAt = (th: number, y: number) => {
+    if (clearance === undefined) clearance = buildClearance();
+    if (!clearance) return 0;
+    const row = Math.min(ROWS - 1, Math.max(0, Math.floor((-0.02 - y) / ROW)));
+    const a = ((Math.round((th / (Math.PI * 2)) * ANG) % ANG) + ANG) % ANG;
+    return clearance[row * ANG + a];
+  };
+
   // Loose hair falling behind: a thick sheet with clumped, uneven ends.
   if ((style === 'long' || style === 'wavy' || style === 'shoulder' || style === 'bob' || style === 'half_up') && !tuck) {
     const len = style === 'bob' ? 0.005 : style === 'shoulder' ? -0.07 : female ? -0.36 : -0.3;
@@ -1453,7 +1516,11 @@ export function buildHair(B: BodyBuckets, head: Head, C: Palette, look: FullAppe
     };
     const wave = style === 'wavy' || style === 'half_up' ? 1 : 0;
     const endY = (u: number) => {
-      const side = smoothstep(1.95, 1.2, Math.abs(u)); // sides are shorter
+      // 0 down the back, 1 from behind the shoulders round to the face: the full length falls
+      // down the back (about 35° either side of the spine), shortening to the shoulders by the
+      // time it reaches the arms. (This was the wrong way round: long hair hung long only at the
+      // front sides and stopped at the collar behind.)
+      const side = smoothstep(0.6, 1.3, Math.abs(u));
       const base = style === 'bob' ? 0.018 + side * 0.008 : style === 'shoulder' ? len : lerp(len, -0.06, side);
       return base - clump(u) * 0.016 - Math.sin(u * 4.3) * 0.01;
     };
@@ -1471,7 +1538,7 @@ export function buildHair(B: BodyBuckets, head: Head, C: Palette, look: FullAppe
       }
       const above = Math.max(0, y - 0.125);
       const rTop = r0 - above * above * 6;
-      const flare = Math.max(0, 0.06 - y) * (0.2 + 0.28 * Math.abs(Math.sin(th))) + (wave ? (0.007 * Math.sin(y * 23 + u * 2) + 0.002 * Math.sin(y * 41 - u)) * smoothstep(0.1, -0.05, y) : 0);
+      const flare = Math.max(0, 0.06 - y) * (0.03 + 0.45 * Math.abs(Math.sin(th))) + (wave ? (0.007 * Math.sin(y * 23 + u * 2) + 0.002 * Math.sin(y * 41 - u)) * smoothstep(0.1, -0.05, y) : 0);
       const flip = style === 'shoulder' ? smoothstep(0.7, 1, t) * (0.006 + clump(u) * 0.004) : 0;
       // Half-up: the top is drawn back to the knot, so the loose hair comes out from under it and
       // only gathers its volume lower down (full volume at the top stood out as a separate ledge).
@@ -1502,7 +1569,10 @@ export function buildHair(B: BodyBuckets, head: Head, C: Palette, look: FullAppe
         const shoulder = Math.exp(-(((y + 0.125) / 0.075) ** 2));
         const rx = (0.18 + shoulder * 0.065) * m.w;
         const rz = (look.outfit === 'surcoat' || look.outfit === 'gown' ? 0.185 : 0.16);
-        const envelope = 1 / Math.sqrt((Math.sin(th) / rx) ** 2 + (Math.cos(th) / rz) ** 2) + (inner ? 0.008 : 0.014);
+        // Just over the clothes it falls on, when they're known (KyndAvatar builds them first);
+        // otherwise a padded torso and shoulders.
+        const worn = clearAt(th, y);
+        const envelope = worn > 0 ? worn + (inner ? 0.006 : 0.012) : 1 / Math.sqrt((Math.sin(th) / rx) ** 2 + (Math.cos(th) / rz) ** 2) + (inner ? 0.008 : 0.014);
         r = Math.max(r, lerp(r, envelope, smoothstep(-0.025, -0.095, y)));
       }
       return out.set(Math.sin(th) * r, y + HEAD_Y, Math.cos(th) * r * (1 + 0.03 * join));
@@ -1511,7 +1581,7 @@ export function buildHair(B: BodyBuckets, head: Head, C: Palette, look: FullAppe
     const loop = [...us.map((u) => ({ u, inner: false })), ...[...us].reverse().map((u) => ({ u, inner: true }))];
     grid(B.hair, {
       us: loop.map((_l, i) => i),
-      vs: range(0, 1, 24),
+      vs: range(0, 1, 28),
       wrapU: true,
       flip: true,
       at: (i, t, out) => {
@@ -1542,11 +1612,12 @@ export function buildHair(B: BodyBuckets, head: Head, C: Palette, look: FullAppe
       // (Starting below the crown's volume, and for half-up below the drawn-back top, so the
       // strands never thicken the hair round the head.)
       const t0 = (style === 'half_up' ? 0.5 : 0.3) + hash(i + 31) * 0.2;
-      // Past the end of the sheet: a wisp 0–4.5 cm long, down the back only (at the sides the
-      // sheet ends above the shoulders, and a wisp hanging from there would fall into them).
-      const wisp = (style === 'bob' ? 0.012 : 0.045) * hash(i + 57) * smoothstep(1.3, 0.8, Math.abs(u));
+      // Past the end of the sheet: a wisp 0–4.5 cm long, down the back only, where the hair falls
+      // its full length (further round, the sheet ends over the shoulders and a wisp would fall
+      // into them).
+      const wisp = (style === 'bob' ? 0.012 : 0.045) * hash(i + 57) * smoothstep(0.6, 0.35, Math.abs(u));
       const pts: THREE.Vector3[] = [];
-      const K = 9;
+      const K = 12;
       for (let k = 0; k <= K; k++) {
         const t = lerp(t0, 1, k / K);
         at(u + Math.sin(t * 5 + i) * 0.012, t, false, tmp);
@@ -1572,7 +1643,7 @@ export function buildHair(B: BodyBuckets, head: Head, C: Palette, look: FullAppe
         paint: (t) => ({ c: mixCol(base, C.hairLight, ridge(u) * 0.18 * smoothstep(0.15, 0.4, t) * smoothstep(0.9, 0.55, t)) }),
         weights: (p) => neckAt(p),
         seg: 5,
-        steps: 18,
+        steps: 20,
       });
     }
   }
